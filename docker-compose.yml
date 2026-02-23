@@ -1,0 +1,67 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ddjj
+      POSTGRES_PASSWORD: ddjj_dev
+      POSTGRES_DB: ddjj_arca
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ddjj:ddjj_dev@db:5432/ddjj_arca
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SECRET_KEY: dev-secret-key-change-in-production
+      FRONTEND_URL: http://localhost:3000
+      PORT: 8000
+    depends_on:
+      - db
+      - redis
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    environment:
+      DATABASE_URL: postgresql+psycopg2://ddjj:ddjj_dev@db:5432/ddjj_arca
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      SECRET_KEY: dev-secret-key-change-in-production
+      DOWNLOAD_DIR: /app/descargas
+    depends_on:
+      - db
+      - redis
+    volumes:
+      - downloads:/app/descargas
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      BACKEND_URL: http://backend:8000
+      PORT: 3000
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
+  downloads:
