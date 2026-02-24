@@ -55,3 +55,14 @@ async def root():
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+@app.get("/debug/config")
+async def debug_config():
+    """Temporary debug endpoint - remove in production."""
+    return {
+        "secret_key_len": len(settings.SECRET_KEY),
+        "secret_key_start": settings.SECRET_KEY[:8],
+        "secret_key_default": settings.SECRET_KEY == "change-me-in-production",
+        "database_url_start": settings.DATABASE_URL[:30],
+    }
