@@ -12,7 +12,7 @@ from app.routers import admin, auth, clients, consultations, downloads
 async def lifespan(app: FastAPI):
     # Startup: create tables if they don't exist
     from app.db import engine, Base
-    from app.models import *  # noqa: F401, F403
+    from app.models import Tenant, User, Cliente, Consulta  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     os.makedirs(settings.DOWNLOAD_DIR, exist_ok=True)
