@@ -48,7 +48,7 @@ async def register(
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,  # True in production with HTTPS
+        secure=True,
         samesite="lax",
         max_age=86400,
         path="/",
@@ -82,7 +82,7 @@ async def login(
         key="access_token",
         value=token,
         httponly=True,
-        secure=False,
+        secure=True,
         samesite="lax",
         max_age=86400,
         path="/",

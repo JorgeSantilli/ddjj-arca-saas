@@ -10,7 +10,11 @@ from app.routers import admin, auth, clients, consultations, downloads
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Startup: create tables if they don't exist
+    from app.db import engine, Base
+    from app.models import *  # noqa: F401, F403
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     os.makedirs(settings.DOWNLOAD_DIR, exist_ok=True)
     yield
     # Shutdown
@@ -44,5 +48,10 @@ app.include_router(admin.router)
 
 
 @app.get("/")
-async def health():
+async def root():
     return {"status": "ok", "version": "2.0.0"}
+
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
