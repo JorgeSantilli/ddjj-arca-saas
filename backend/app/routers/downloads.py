@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 from typing import Annotated
 
@@ -10,6 +11,8 @@ from app.auth.deps import get_current_tenant_id, get_current_user
 from app.config import settings
 from app.db import get_db
 from app.models.user import User
+
+logger = logging.getLogger("downloads")
 
 router = APIRouter(prefix="/api/v1/downloads", tags=["downloads"])
 
@@ -44,8 +47,15 @@ async def list_downloads(
                 filepath = os.path.join(periodo_path, archivo)
                 try:
                     with open(filepath, "r", encoding="latin-1") as f:
+                        raw_first = f.readline()
+                    logger.info(f"CSV {archivo}: raw header = {repr(raw_first[:200])}")
+
+                    with open(filepath, "r", encoding="latin-1") as f:
                         reader = csv.DictReader(f, delimiter=";")
+                        headers = reader.fieldnames
+                        logger.info(f"CSV {archivo}: parsed headers = {headers}")
                         for row in reader:
+                            logger.info(f"CSV {archivo}: row keys = {list(row.keys())}, vals = {list(row.values())[:3]}")
                             registros.append({
                                 "cliente_cuit": cuit_dir.replace("CUIT_", ""),
                                 "estado": row.get("Estado", ""),
@@ -56,7 +66,8 @@ async def list_downloads(
                                 "fecha_presentacion": row.get("Fecha de Presentación", row.get("Fecha de Presentacion", "")),
                                 "archivo": f"tenant_{tenant_id}/{cuit_dir}/{periodo_dir}/{archivo}",
                             })
-                except Exception:
+                except Exception as e:
+                    logger.error(f"Error parsing CSV {filepath}: {e}")
                     continue
 
     return registros
