@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { clients as clientsApi, consultations } from "@/lib/api";
 import type { Cliente, ConsultaStatus } from "@/lib/api";
 
@@ -11,22 +11,49 @@ export default function ConsultationsPage() {
   const [periodo, setPeriodo] = useState("1");
   const [executing, setExecuting] = useState(false);
   const [error, setError] = useState("");
+  const [logs, setLogs] = useState<string[]>([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const logRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     clientsApi.list().then(setClientes).catch(console.error);
     consultations.status().then(setStatus).catch(console.error);
   }, []);
 
-  // Polling
+  // Polling status + logs
   const poll = useCallback(() => {
     consultations.status().then(setStatus).catch(console.error);
   }, []);
 
+  const pollLogs = useCallback(() => {
+    consultations.logs(200).then((res) => {
+      setLogs(res.logs);
+      // Auto-scroll to bottom
+      setTimeout(() => {
+        if (logRef.current) {
+          logRef.current.scrollTop = logRef.current.scrollHeight;
+        }
+      }, 50);
+    }).catch(console.error);
+  }, []);
+
   useEffect(() => {
     if (!status?.corriendo) return;
-    const interval = setInterval(poll, 3000);
+    const interval = setInterval(() => {
+      poll();
+      if (showLogs) pollLogs();
+    }, 3000);
     return () => clearInterval(interval);
-  }, [status?.corriendo, poll]);
+  }, [status?.corriendo, poll, pollLogs, showLogs]);
+
+  // Also poll logs when log panel is opened
+  useEffect(() => {
+    if (showLogs) {
+      pollLogs();
+      const interval = setInterval(pollLogs, 3000);
+      return () => clearInterval(interval);
+    }
+  }, [showLogs, pollLogs]);
 
   function toggleClient(id: number) {
     setSelectedIds((prev) =>
@@ -45,11 +72,12 @@ export default function ConsultationsPage() {
     }
     setError("");
     setExecuting(true);
+    setShowLogs(true);
     try {
       await consultations.execute({ cliente_ids: selectedIds, periodo, headless: true });
       setSelectedIds([]);
-      // Start polling
       setTimeout(poll, 1000);
+      setTimeout(pollLogs, 2000);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error al ejecutar");
     } finally {
@@ -117,6 +145,12 @@ export default function ConsultationsPage() {
           >
             {status?.corriendo ? "Ejecutando..." : executing ? "Encolando..." : "Ejecutar consulta"}
           </button>
+          <button
+            onClick={() => setShowLogs(!showLogs)}
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 text-sm"
+          >
+            {showLogs ? "Ocultar logs" : "Ver logs"}
+          </button>
         </div>
 
         {status?.corriendo && (
@@ -125,6 +159,52 @@ export default function ConsultationsPage() {
           </div>
         )}
       </div>
+
+      {/* Log viewer */}
+      {showLogs && (
+        <div className="bg-gray-900 rounded-lg shadow mb-6 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2 bg-gray-800">
+            <span className="text-gray-300 text-sm font-mono">Logs del scraper</span>
+            <div className="flex gap-2">
+              <button
+                onClick={pollLogs}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Actualizar
+              </button>
+              <button
+                onClick={() => setShowLogs(false)}
+                className="text-xs text-gray-400 hover:text-white"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+          <div
+            ref={logRef}
+            className="p-4 max-h-80 overflow-y-auto font-mono text-xs leading-5"
+          >
+            {logs.length === 0 ? (
+              <p className="text-gray-500">Sin logs aun. Ejecuta una consulta para ver la actividad.</p>
+            ) : (
+              logs.map((line, i) => (
+                <div
+                  key={i}
+                  className={`${
+                    line.includes("ERROR") ? "text-red-400" :
+                    line.includes("WARNING") ? "text-yellow-400" :
+                    line.includes("EXITOSO") ? "text-green-400" :
+                    line.includes("INICIO") || line.includes("FIN") ? "text-cyan-400" :
+                    "text-gray-300"
+                  }`}
+                >
+                  {line}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
       {/* History table */}
       <div className="bg-white rounded-lg shadow">

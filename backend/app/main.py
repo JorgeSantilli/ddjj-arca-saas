@@ -1,3 +1,4 @@
+import logging
 import os
 from contextlib import asynccontextmanager
 
@@ -6,6 +7,11 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.routers import admin, auth, clients, consultations, downloads
+
+# Configure logging for scraper/task visibility
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
+logging.getLogger("scraper").setLevel(logging.INFO)
+logging.getLogger("task_runner").setLevel(logging.INFO)
 
 
 @asynccontextmanager

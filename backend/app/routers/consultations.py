@@ -1,6 +1,10 @@
+import asyncio
+import logging
+from collections import deque
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -12,6 +16,22 @@ from app.models.user import User
 from app.schemas.consultation import ConsultaCreate, ConsultaResponse
 
 router = APIRouter(prefix="/api/v1/consultations", tags=["consultations"])
+
+# In-memory log buffer for real-time viewing
+_log_buffer: deque[str] = deque(maxlen=500)
+
+
+class _BufferHandler(logging.Handler):
+    def emit(self, record):
+        msg = self.format(record)
+        _log_buffer.append(msg)
+
+
+# Attach handler to scraper and task_runner loggers
+_handler = _BufferHandler()
+_handler.setFormatter(logging.Formatter("%(asctime)s [%(name)s] %(levelname)s: %(message)s", datefmt="%H:%M:%S"))
+logging.getLogger("scraper").addHandler(_handler)
+logging.getLogger("task_runner").addHandler(_handler)
 
 
 @router.get("/", response_model=list[ConsultaResponse])
@@ -53,7 +73,7 @@ async def execute_consultations(
     _user: Annotated[User, Depends(get_current_user)],
 ):
     """Encolar consultas ARCA para ejecucion en background."""
-    from app.tasks.scraping import scrape_arca_task
+    from app.tasks.runner import enqueue_scraping
 
     consulta_ids = []
     for cliente_id in payload.cliente_ids:
@@ -77,9 +97,9 @@ async def execute_consultations(
 
     await db.commit()
 
-    # Enqueue Celery tasks
+    # Enqueue in-process background tasks (sequential execution)
     for cid in consulta_ids:
-        scrape_arca_task.delay(cid, tenant_id)
+        await enqueue_scraping(cid, tenant_id)
 
     return {"message": f"{len(consulta_ids)} consultas encoladas", "consulta_ids": consulta_ids}
 
@@ -157,3 +177,13 @@ async def delete_batch(
         if consulta:
             await db.delete(consulta)
     await db.commit()
+
+
+@router.get("/logs")
+async def get_logs(
+    _user: Annotated[User, Depends(get_current_user)],
+    lines: int = 100,
+):
+    """Obtener los ultimos logs del scraper (para debug)."""
+    recent = list(_log_buffer)[-lines:]
+    return {"logs": recent}

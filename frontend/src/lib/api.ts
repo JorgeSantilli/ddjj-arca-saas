@@ -69,6 +69,7 @@ export const consultations = {
   delete: (id: number) => fetchApi(`/consultations/${id}`, { method: "DELETE" }),
   deleteBatch: (ids: number[]) =>
     fetchApi("/consultations/delete-batch", { method: "POST", json: ids }),
+  logs: (lines = 100) => fetchApi<{ logs: string[] }>(`/consultations/logs?lines=${lines}`),
 };
 
 // Downloads

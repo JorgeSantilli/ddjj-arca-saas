@@ -35,7 +35,7 @@ docker-compose up
 ```
 
 ## Architecture
-- `backend/app/main.py` — FastAPI app with CORS and router registration
+- `backend/app/main.py` — FastAPI app with CORS, lifespan auto-creates tables
 - `backend/app/db.py` — Async SQLAlchemy engine + session
 - `backend/app/models/` — Tenant, User, Cliente, Consulta (all with tenant_id)
 - `backend/app/routers/` — auth, clients, consultations, downloads, admin
@@ -63,6 +63,20 @@ docker-compose up
 - **DO NOT use**: passlib — abandoned
 - **DO use**: httpOnly cookies for JWT storage
 - **DO NOT use**: localStorage for tokens
+- **PyJWT `sub` claim MUST be string** — encode with `str(user_id)`, decode and cast back with `int()`
 
 ## Multi-Tenant Pattern
 Every data model has `tenant_id` column. Every route uses `get_current_tenant_id()` dependency to filter data. JWT contains `tenant_id` claim.
+
+## Railway Deployment
+- **Frontend**: https://frontend-production-ca6d.up.railway.app
+- **Backend**: https://backend-production-b04c.up.railway.app
+- Railway assigns port **8080** (not 8000) — internal URLs use `http://service.railway.internal:8080`
+- Frontend uses **standalone output** — Dockerfile runs `node .next/standalone/server.js` (NOT `npm start`)
+- Worker service requires manual Railway dashboard config: Root Directory `backend`, Dockerfile Path `Dockerfile.worker`
+- Use Dockerfiles (NOT Nixpacks) for all services
+
+## CSS / Tailwind Notes
+- Tailwind v4 dark mode can make input text invisible on white backgrounds — always set explicit `color` on inputs
+- `globals.css` has `input, select, textarea { color: #171717 }` to prevent dark mode inheritance
+- All form inputs should have `text-gray-900 placeholder-gray-400` classes
