@@ -26,10 +26,17 @@ async function proxyRequest(req: NextRequest, method: string) {
   const backendRes = await fetch(url, fetchOpts);
 
   const responseHeaders = new Headers();
-  // Forward Set-Cookie from backend
-  const setCookie = backendRes.headers.get("set-cookie");
-  if (setCookie) responseHeaders.set("set-cookie", setCookie);
-  responseHeaders.set("content-type", backendRes.headers.get("content-type") || "application/json");
+  responseHeaders.set(
+    "content-type",
+    backendRes.headers.get("content-type") || "application/json"
+  );
+
+  // Forward all Set-Cookie headers from backend
+  const setCookies = backendRes.headers.getSetCookie?.()
+    ?? [backendRes.headers.get("set-cookie")].filter(Boolean);
+  for (const sc of setCookies) {
+    if (sc) responseHeaders.append("set-cookie", sc);
+  }
 
   if (backendRes.status === 204) {
     return new NextResponse(null, { status: 204, headers: responseHeaders });
