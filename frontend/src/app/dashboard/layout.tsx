@@ -6,9 +6,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { auth } from "@/lib/api";
 
 const navItems = [
-  { href: "/dashboard", label: "Panel" },
-  { href: "/dashboard/clients", label: "Clientes" },
-  { href: "/dashboard/consultations", label: "Consultas" },
+  { href: "/dashboard", label: "Operaciones" },
   { href: "/dashboard/downloads", label: "Descargas" },
 ];
 

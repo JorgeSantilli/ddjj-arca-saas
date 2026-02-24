@@ -34,7 +34,7 @@ export default function DownloadsPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    let rows = records.filter(
+    const rows = records.filter(
       (r) =>
         r.cuit_cuil.toLowerCase().includes(q) ||
         r.formulario.toLowerCase().includes(q) ||
