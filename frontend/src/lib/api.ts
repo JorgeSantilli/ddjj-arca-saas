@@ -75,8 +75,9 @@ export const consultations = {
 // Downloads
 export const downloads = {
   list: () => fetchApi<DownloadRecord[]>("/downloads/"),
-  deleteBatch: (paths: string[]) =>
-    fetchApi("/downloads/delete-batch", { method: "POST", json: paths }),
+  delete: (id: number) => fetchApi(`/downloads/${id}`, { method: "DELETE" }),
+  deleteBatch: (ids: number[]) =>
+    fetchApi("/downloads/delete-batch", { method: "POST", json: ids }),
 };
 
 // Admin
@@ -140,14 +141,17 @@ export interface ConsultaStatus {
 }
 
 export interface DownloadRecord {
+  id: number;
   cliente_cuit: string;
+  cliente_nombre: string;
   estado: string;
   cuit_cuil: string;
   formulario: string;
   periodo: string;
   transaccion: string;
   fecha_presentacion: string;
-  archivo: string;
+  consulta_id: number;
+  created_at: string;
 }
 
 export interface AdminStats {

@@ -15,6 +15,7 @@ from sqlalchemy.orm import sessionmaker
 from app.config import settings
 from app.models.client import Cliente
 from app.models.consultation import Consulta
+from app.models.download import Descarga
 
 logger = logging.getLogger("task_runner")
 
@@ -116,6 +117,24 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
                 consulta.estado = "exitoso"
                 consulta.archivo_csv = resultado.get("archivo")
                 logger.info(f"Consulta {consulta_id} exitosa: {resultado.get('archivo')}")
+
+                # Save table data extracted from ARCA screen
+                tabla_datos = resultado.get("tabla_datos", [])
+                if tabla_datos:
+                    for row in tabla_datos:
+                        descarga = Descarga(
+                            tenant_id=tenant_id,
+                            consulta_id=consulta_id,
+                            cliente_id=consulta.cliente_id,
+                            estado=row.get("estado", ""),
+                            cuit_cuil=row.get("cuit_cuil", ""),
+                            formulario=row.get("formulario", ""),
+                            periodo=row.get("periodo", ""),
+                            transaccion=row.get("transaccion", ""),
+                            fecha_presentacion=row.get("fecha_presentacion", ""),
+                        )
+                        db.add(descarga)
+                    logger.info(f"Guardados {len(tabla_datos)} registros de tabla ARCA en DB")
             else:
                 consulta.estado = "error"
                 consulta.error_detalle = resultado.get("error", "Error desconocido")

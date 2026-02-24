@@ -5,11 +5,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
+from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_tenant_id, get_current_user
 from app.config import settings
 from app.db import get_db
+from app.models.download import Descarga
+from app.models.client import Cliente
 from app.models.user import User
 
 logger = logging.getLogger("downloads")
@@ -23,49 +26,68 @@ async def list_downloads(
     _user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
-    """Listar archivos CSV descargados del tenant."""
-    base_dir = os.path.join(settings.DOWNLOAD_DIR, f"tenant_{tenant_id}")
-    registros = []
+    """Listar registros de DDJJ extraidos de ARCA."""
+    result = await db.execute(
+        select(Descarga, Cliente.nombre.label("cliente_nombre"))
+        .join(Cliente, Descarga.cliente_id == Cliente.id)
+        .where(Descarga.tenant_id == tenant_id)
+        .order_by(Descarga.created_at.desc())
+    )
+    rows = result.all()
 
-    if not os.path.exists(base_dir):
-        return registros
+    return [
+        {
+            "id": d.id,
+            "cliente_cuit": d.cuit_cuil,
+            "cliente_nombre": nombre,
+            "estado": d.estado,
+            "cuit_cuil": d.cuit_cuil,
+            "formulario": d.formulario,
+            "periodo": d.periodo,
+            "transaccion": d.transaccion,
+            "fecha_presentacion": d.fecha_presentacion,
+            "consulta_id": d.consulta_id,
+            "created_at": d.created_at.isoformat() if d.created_at else "",
+        }
+        for d, nombre in rows
+    ]
 
-    for cuit_dir in sorted(os.listdir(base_dir)):
-        cuit_path = os.path.join(base_dir, cuit_dir)
-        if not os.path.isdir(cuit_path):
-            continue
 
-        for periodo_dir in sorted(os.listdir(cuit_path), reverse=True):
-            periodo_path = os.path.join(cuit_path, periodo_dir)
-            if not os.path.isdir(periodo_path):
-                continue
+@router.delete("/{descarga_id}")
+async def delete_download(
+    descarga_id: int,
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Eliminar un registro de descarga."""
+    result = await db.execute(
+        select(Descarga).where(Descarga.id == descarga_id, Descarga.tenant_id == tenant_id)
+    )
+    descarga = result.scalar_one_or_none()
+    if not descarga:
+        raise HTTPException(status_code=404, detail="Registro no encontrado")
+    await db.delete(descarga)
+    await db.commit()
 
-            for archivo in os.listdir(periodo_path):
-                if not archivo.endswith(".csv"):
-                    continue
 
-                filepath = os.path.join(periodo_path, archivo)
-                try:
-                    with open(filepath, "r", encoding="latin-1") as f:
-                        reader = csv.DictReader(f, delimiter=";")
-                        if reader.fieldnames:
-                            logger.info(f"CSV {archivo}: headers={reader.fieldnames}")
-                        for row in reader:
-                            registros.append({
-                                "cliente_cuit": cuit_dir.replace("CUIT_", ""),
-                                "estado": row.get("Estado", ""),
-                                "cuit_cuil": row.get("CUIT/CUIL", ""),
-                                "formulario": row.get("Formulario", ""),
-                                "periodo": row.get("Período", row.get("Periodo", "")),
-                                "transaccion": row.get("Transacción", row.get("Transaccion", "")),
-                                "fecha_presentacion": row.get("Fecha de Presentación", row.get("Fecha de Presentacion", "")),
-                                "archivo": f"tenant_{tenant_id}/{cuit_dir}/{periodo_dir}/{archivo}",
-                            })
-                except Exception as e:
-                    logger.error(f"Error parsing CSV {filepath}: {e}")
-                    continue
-
-    return registros
+@router.post("/delete-batch")
+async def delete_batch(
+    ids: list[int],
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_db)],
+):
+    """Eliminar multiples registros de descarga."""
+    for did in ids:
+        result = await db.execute(
+            select(Descarga).where(Descarga.id == did, Descarga.tenant_id == tenant_id)
+        )
+        descarga = result.scalar_one_or_none()
+        if descarga:
+            await db.delete(descarga)
+    await db.commit()
+    return {"eliminados": len(ids)}
 
 
 @router.get("/file/{file_path:path}")
@@ -75,7 +97,6 @@ async def download_file(
     _user: Annotated[User, Depends(get_current_user)],
 ):
     """Descargar un archivo CSV. Proteccion contra path traversal."""
-    # Ensure file belongs to tenant
     if not file_path.startswith(f"tenant_{tenant_id}/"):
         raise HTTPException(status_code=403, detail="Acceso denegado")
 
@@ -90,24 +111,3 @@ async def download_file(
         raise HTTPException(status_code=404, detail="Archivo no encontrado")
 
     return FileResponse(real_path, filename=os.path.basename(real_path))
-
-
-@router.post("/delete-batch")
-async def delete_files(
-    file_paths: list[str],
-    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
-    _user: Annotated[User, Depends(get_current_user)],
-):
-    """Eliminar multiples archivos CSV."""
-    deleted = 0
-    for fp in file_paths:
-        if not fp.startswith(f"tenant_{tenant_id}/"):
-            continue
-        full_path = os.path.join(settings.DOWNLOAD_DIR, fp)
-        real_path = os.path.realpath(full_path)
-        base_real = os.path.realpath(settings.DOWNLOAD_DIR)
-        if real_path.startswith(base_real) and os.path.isfile(real_path):
-            os.remove(real_path)
-            deleted += 1
-
-    return {"eliminados": deleted}

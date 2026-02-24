@@ -600,6 +600,50 @@ class ARCAScraper:
         except Exception as e:
             logger.warning(f"[LOGOUT] Error: {e}")
 
+    # ========== EXTRAER DATOS DE TABLA ==========
+
+    def extraer_tabla(self):
+        """Extrae los datos de la tabla de resultados visible en pantalla."""
+        logger.info("[TABLA] Extrayendo datos de la tabla de resultados...")
+        try:
+            # Wait for table to be present
+            table = self.page.locator("table").last
+            if not table.is_visible(timeout=5000):
+                logger.warning("[TABLA] No se encontro tabla visible")
+                return []
+
+            rows_data = self.page.evaluate("""() => {
+                const tables = document.querySelectorAll('table');
+                if (tables.length === 0) return [];
+                // Use the last table (results table)
+                const table = tables[tables.length - 1];
+                const rows = table.querySelectorAll('tbody tr');
+                const result = [];
+                for (const row of rows) {
+                    const cells = row.querySelectorAll('td');
+                    if (cells.length >= 6) {
+                        result.push({
+                            estado: (cells[0] && cells[0].textContent || '').trim(),
+                            cuit_cuil: (cells[1] && cells[1].textContent || '').trim(),
+                            formulario: (cells[2] && cells[2].textContent || '').trim(),
+                            periodo: (cells[3] && cells[3].textContent || '').trim(),
+                            transaccion: (cells[4] && cells[4].textContent || '').trim(),
+                            fecha_presentacion: (cells[5] && cells[5].textContent || '').trim(),
+                        });
+                    }
+                }
+                return result;
+            }""")
+
+            logger.info(f"[TABLA] Extraidos {len(rows_data)} registros")
+            for r in rows_data:
+                logger.info(f"  {r['estado']} | {r['cuit_cuil']} | {r['formulario']} | {r['periodo']}")
+            return rows_data
+
+        except Exception as e:
+            logger.warning(f"[TABLA] Error extrayendo datos: {e}")
+            return []
+
     # ========== FLUJO COMPLETO ==========
 
     def ejecutar_consulta(self, cuit_login, clave_fiscal, cuit_consulta, periodo, tenant_id=None):
@@ -639,7 +683,11 @@ class ARCAScraper:
                 self.cerrar_sesion()
                 return r
 
+            # Extract table data from screen BEFORE downloading CSV
+            tabla_datos = self.extraer_tabla()
+
             r = self.exportar_csv(cuit_consulta, periodo, tenant_id=tenant_id)
+            r["tabla_datos"] = tabla_datos
             self.cerrar_sesion()
 
             logger.info(f"FIN: {'EXITOSO' if r['exito'] else 'ERROR - ' + r.get('error', '')}")

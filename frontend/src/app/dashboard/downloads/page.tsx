@@ -72,11 +72,11 @@ export default function DownloadsPage() {
   }
 
   async function handleDeleteSelected() {
-    const paths = Array.from(selectedRows).map((i) => filtered[i].archivo);
-    if (paths.length === 0) return;
-    if (!confirm(`Eliminar ${paths.length} registro(s)?`)) return;
+    const ids = Array.from(selectedRows).map((i) => filtered[i].id);
+    if (ids.length === 0) return;
+    if (!confirm(`Eliminar ${ids.length} registro(s)?`)) return;
     try {
-      await downloads.deleteBatch(paths);
+      await downloads.deleteBatch(ids);
       setSelectedRows(new Set());
       const updated = await downloads.list();
       setRecords(updated);
