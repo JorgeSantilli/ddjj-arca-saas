@@ -44,7 +44,8 @@ railway service frontend && railway up --detach
 - `backend/app/services/scraper.py` — ARCAScraper class (Playwright automation + table extraction)
 - `backend/app/services/email.py` — Resend email notifications
 - `backend/app/tasks/runner.py` — In-process async task runner (sequential queue)
-- `frontend/src/app/` — Next.js App Router pages
+- `frontend/src/app/dashboard/page.tsx` — Unified "Centro de Operaciones" (clients + consultations + downloads)
+- `frontend/src/hooks/useTable.ts` — Reusable table hook (sort, search, pagination, sessionStorage persistence)
 - `frontend/src/lib/api.ts` — API client with typed functions
 - `frontend/src/app/api/v1/[...proxy]/route.ts` — BFF proxy to backend
 
@@ -92,6 +93,13 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - Use Dockerfiles (NOT Nixpacks) for all services
 - **Playwright pip version MUST match Docker image version**
 - **Container filesystem is ephemeral** — use Railway Volume for persistent files
+
+## Frontend Architecture
+- **Unified dashboard**: `/dashboard` page combines Clients, Consultations, and Downloads in one view
+- **useTable hook**: Reusable for sort/search/pagination across all tables, persists pageSize in sessionStorage
+- **Navigation**: "Operaciones" (unified) + "Descargas" (standalone) + Admin (superadmin only)
+- **`skipTrailingSlashRedirect: true`** in `next.config.ts` — CRITICAL: prevents Next.js 308 redirects that strip cookies from BFF proxy API calls
+- **API URLs use trailing slashes** (`/clients/`, `/downloads/`) — FastAPI requires them
 
 ## CSS / Tailwind Notes
 - Tailwind v4 dark mode can make input text invisible on white backgrounds
