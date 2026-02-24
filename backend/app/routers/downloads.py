@@ -62,6 +62,47 @@ async def list_downloads(
     return registros
 
 
+@router.get("/debug-csv")
+async def debug_csv(
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+):
+    """Debug: ver contenido raw de los CSVs para diagnosticar parsing."""
+    base_dir = os.path.join(settings.DOWNLOAD_DIR, f"tenant_{tenant_id}")
+    result = {"base_dir": base_dir, "exists": os.path.exists(base_dir), "files": []}
+
+    if not os.path.exists(base_dir):
+        return result
+
+    for root, dirs, files in os.walk(base_dir):
+        for f in files:
+            if not f.endswith(".csv"):
+                continue
+            fpath = os.path.join(root, f)
+            try:
+                with open(fpath, "r", encoding="latin-1") as fh:
+                    raw_lines = fh.readlines()[:5]  # First 5 lines
+                with open(fpath, "r", encoding="latin-1") as fh:
+                    reader = csv.DictReader(fh, delimiter=";")
+                    headers = reader.fieldnames
+                    first_rows = []
+                    for i, row in enumerate(reader):
+                        if i >= 2:
+                            break
+                        first_rows.append(dict(row))
+                result["files"].append({
+                    "path": fpath,
+                    "raw_lines": raw_lines,
+                    "headers": headers,
+                    "parsed_rows": first_rows,
+                    "size": os.path.getsize(fpath),
+                })
+            except Exception as e:
+                result["files"].append({"path": fpath, "error": str(e)})
+
+    return result
+
+
 @router.get("/file/{file_path:path}")
 async def download_file(
     file_path: str,
