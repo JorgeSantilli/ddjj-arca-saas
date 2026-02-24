@@ -30,7 +30,7 @@ export default function DownloadsPage() {
           placeholder="Buscar por CUIT, formulario, periodo..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-md px-3 py-2 border rounded-md"
+          className="w-full max-w-md px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
         />
       </div>
 

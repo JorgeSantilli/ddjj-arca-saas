@@ -79,7 +79,7 @@ export default function ClientsPage() {
       {showForm && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-            <h3 className="text-lg font-semibold mb-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
               {editingId ? "Editar cliente" : "Nuevo cliente"}
             </h3>
             {error && <div className="bg-red-50 text-red-700 p-3 rounded mb-4">{error}</div>}
@@ -89,14 +89,14 @@ export default function ClientsPage() {
                 required
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <input
                 placeholder="CUIT Login"
                 required={!editingId}
                 value={form.cuit_login}
                 onChange={(e) => setForm({ ...form, cuit_login: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <input
                 type="password"
@@ -104,14 +104,14 @@ export default function ClientsPage() {
                 required={!editingId}
                 value={form.clave_fiscal}
                 onChange={(e) => setForm({ ...form, clave_fiscal: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <input
                 placeholder="CUIT Consulta"
                 required={!editingId}
                 value={form.cuit_consulta}
                 onChange={(e) => setForm({ ...form, cuit_consulta: e.target.value })}
-                className="w-full px-3 py-2 border rounded-md"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               />
               <label className="flex items-center gap-2">
                 <input
@@ -119,10 +119,10 @@ export default function ClientsPage() {
                   checked={form.activo}
                   onChange={(e) => setForm({ ...form, activo: e.target.checked })}
                 />
-                <span className="text-sm">Activo</span>
+                <span className="text-sm text-gray-700">Activo</span>
               </label>
               <div className="flex gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border rounded-md">
+                <button type="button" onClick={() => setShowForm(false)} className="flex-1 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50">
                   Cancelar
                 </button>
                 <button type="submit" className="flex-1 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700">

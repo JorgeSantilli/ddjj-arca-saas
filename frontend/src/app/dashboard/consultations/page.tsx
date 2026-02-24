@@ -88,7 +88,7 @@ export default function ConsultationsPage() {
                   checked={selectedIds.includes(c.id)}
                   onChange={() => toggleClient(c.id)}
                 />
-                <span className="text-sm">{c.nombre}</span>
+                <span className="text-sm text-gray-900">{c.nombre}</span>
                 {!c.activo && <span className="text-xs text-gray-400">(inactivo)</span>}
               </label>
             ))}
@@ -101,7 +101,7 @@ export default function ConsultationsPage() {
             <select
               value={periodo}
               onChange={(e) => setPeriodo(e.target.value)}
-              className="px-3 py-2 border rounded-md"
+              className="px-3 py-2 border border-gray-300 rounded-md text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
             >
               <option value="1">1 mes</option>
               <option value="2">2 meses</option>
