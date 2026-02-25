@@ -8,6 +8,7 @@ class ClienteCreate(BaseModel):
     clave_fiscal: str
     cuit_consulta: str
     activo: bool = True
+    tipo_cliente: str = "no_empleador"
 
 
 class ClienteUpdate(BaseModel):
@@ -16,6 +17,7 @@ class ClienteUpdate(BaseModel):
     clave_fiscal: str | None = None
     cuit_consulta: str | None = None
     activo: bool | None = None
+    tipo_cliente: str | None = None
 
 
 class ClienteResponse(BaseModel):
@@ -24,6 +26,9 @@ class ClienteResponse(BaseModel):
     cuit_login: str
     cuit_consulta: str
     activo: bool
+    tipo_cliente: str
+    ultimo_periodo: str | None = None
+    estado_ddjj: str = "sin_datos"
     created_at: datetime
 
     model_config = {"from_attributes": True}

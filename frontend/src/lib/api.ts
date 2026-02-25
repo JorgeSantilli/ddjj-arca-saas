@@ -58,6 +58,7 @@ export const clients = {
   update: (id: number, data: Partial<ClienteCreate>) =>
     fetchApi<Cliente>(`/clients/${id}`, { method: "PUT", json: data }),
   delete: (id: number) => fetchApi(`/clients/${id}`, { method: "DELETE" }),
+  getPassword: (id: number) => fetchApi<{ clave_fiscal: string }>(`/clients/${id}/password`),
 };
 
 // Consultations
@@ -78,6 +79,16 @@ export const downloads = {
   delete: (id: number) => fetchApi(`/downloads/${id}`, { method: "DELETE" }),
   deleteBatch: (ids: number[]) =>
     fetchApi("/downloads/delete-batch", { method: "POST", json: ids }),
+};
+
+// Form Dictionary
+export const formDictionary = {
+  list: () => fetchApi<FormDictEntry[]>("/form-dictionary/"),
+  create: (data: { clave: string; descripcion: string }) =>
+    fetchApi<FormDictEntry>("/form-dictionary/", { method: "POST", json: data }),
+  update: (id: number, data: { clave: string; descripcion: string }) =>
+    fetchApi<FormDictEntry>(`/form-dictionary/${id}`, { method: "PUT", json: data }),
+  delete: (id: number) => fetchApi(`/form-dictionary/${id}`, { method: "DELETE" }),
 };
 
 // Admin
@@ -112,6 +123,9 @@ export interface Cliente {
   cuit_login: string;
   cuit_consulta: string;
   activo: boolean;
+  tipo_cliente: string;
+  ultimo_periodo: string | null;
+  estado_ddjj: string;
   created_at: string;
 }
 
@@ -121,6 +135,7 @@ export interface ClienteCreate {
   clave_fiscal: string;
   cuit_consulta: string;
   activo: boolean;
+  tipo_cliente: string;
 }
 
 export interface Consulta {
@@ -147,11 +162,19 @@ export interface DownloadRecord {
   estado: string;
   cuit_cuil: string;
   formulario: string;
+  descripcion_formulario: string;
   periodo: string;
   transaccion: string;
   fecha_presentacion: string;
   consulta_id: number;
   created_at: string;
+}
+
+export interface FormDictEntry {
+  id: number;
+  clave: string;
+  descripcion: string;
+  is_default: boolean;
 }
 
 export interface AdminStats {

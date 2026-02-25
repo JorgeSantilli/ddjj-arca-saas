@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { downloads } from "@/lib/api";
 import type { DownloadRecord } from "@/lib/api";
 
-type SortField = "estado" | "cuit_cuil" | "formulario" | "periodo" | "transaccion" | "fecha_presentacion";
+type SortField = "cliente_nombre" | "estado" | "cuit_cuil" | "formulario" | "descripcion_formulario" | "periodo" | "transaccion" | "fecha_presentacion";
 type SortDir = "asc" | "desc";
 
 export default function DownloadsPage() {
@@ -36,8 +36,10 @@ export default function DownloadsPage() {
     const q = search.toLowerCase();
     const rows = records.filter(
       (r) =>
+        r.cliente_nombre.toLowerCase().includes(q) ||
         r.cuit_cuil.toLowerCase().includes(q) ||
         r.formulario.toLowerCase().includes(q) ||
+        r.descripcion_formulario.toLowerCase().includes(q) ||
         r.periodo.toLowerCase().includes(q) ||
         r.transaccion.toLowerCase().includes(q) ||
         r.estado.toLowerCase().includes(q) ||
@@ -86,9 +88,9 @@ export default function DownloadsPage() {
   }
 
   function exportTableCSV() {
-    const headers = ["Estado", "CUIT/CUIL", "Formulario", "Período", "Transacción", "Fecha de Presentación"];
+    const headers = ["Cliente", "Estado", "CUIT/CUIL", "Formulario", "Descripción", "Período", "Transacción", "Fecha de Presentación"];
     const rows = filtered.map((r) => [
-      r.estado, r.cuit_cuil, r.formulario, r.periodo, r.transaccion, r.fecha_presentacion,
+      r.cliente_nombre, r.estado, r.cuit_cuil, r.formulario, r.descripcion_formulario, r.periodo, r.transaccion, r.fecha_presentacion,
     ]);
     const csv = [headers, ...rows].map((row) => row.map((c) => `"${c}"`).join(";")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -100,10 +102,12 @@ export default function DownloadsPage() {
     URL.revokeObjectURL(url);
   }
 
-  const columns: { key: SortField; label: string; width?: string }[] = [
+  const columns: { key: SortField; label: string }[] = [
+    { key: "cliente_nombre", label: "Cliente" },
     { key: "estado", label: "Estado" },
     { key: "cuit_cuil", label: "CUIT/CUIL" },
     { key: "formulario", label: "Formulario" },
+    { key: "descripcion_formulario", label: "Descripción" },
     { key: "periodo", label: "Período" },
     { key: "transaccion", label: "Transacción" },
     { key: "fecha_presentacion", label: "Fecha de Presentación" },
@@ -162,7 +166,7 @@ export default function DownloadsPage() {
           </svg>
           <input
             type="text"
-            placeholder="Buscar por CUIT, formulario, estado, periodo..."
+            placeholder="Buscar por cliente, CUIT, formulario, descripción, estado..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-shadow"
@@ -222,6 +226,7 @@ export default function DownloadsPage() {
                         className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                       />
                     </td>
+                    <td className="px-4 py-3 text-sm font-medium text-gray-900">{r.cliente_nombre}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoBadge(r.estado)}`}>
                         {r.estado}
@@ -232,6 +237,9 @@ export default function DownloadsPage() {
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700">
                       {r.formulario}
+                    </td>
+                    <td className="px-4 py-3 text-sm text-gray-500 italic">
+                      {r.descripcion_formulario || <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-4 py-3 text-sm text-gray-700 tabular-nums">
                       {r.periodo}

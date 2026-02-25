@@ -5,6 +5,7 @@ import {
   clients as clientsApi,
   consultations,
   downloads,
+  formDictionary,
 } from "@/lib/api";
 import type {
   Cliente,
@@ -12,6 +13,7 @@ import type {
   ConsultaStatus,
   Consulta,
   DownloadRecord,
+  FormDictEntry,
 } from "@/lib/api";
 import { useTable } from "@/hooks/useTable";
 
@@ -32,6 +34,19 @@ const SortIcon = ({ active, dir }: { active: boolean; dir: "asc" | "desc" }) => 
   if (!active) return <span className="text-gray-300 ml-1">↕</span>;
   return <span className="text-blue-600 ml-1">{dir === "asc" ? "↑" : "↓"}</span>;
 };
+
+const EyeIcon = () => (
+  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+  </svg>
+);
+
+const EyeOffIcon = () => (
+  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.542-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.542 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+  </svg>
+);
 
 // ─── Shared: Table Search + Pagination bar ────────────────────────────────────
 function TableToolbar({
@@ -171,6 +186,15 @@ function estadoDescargaBadge(estado: string) {
   return "bg-gray-50 text-gray-700 ring-1 ring-gray-600/20";
 }
 
+function estadoDdjjBadge(estado: string) {
+  switch (estado) {
+    case "al_dia": return { label: "Al día", css: "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-600/20" };
+    case "atrasado_1": return { label: "Atrasado 1 mes", css: "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20" };
+    case "atrasado_critico": return { label: "Atrasado +1 mes", css: "bg-red-50 text-red-700 ring-1 ring-red-600/20" };
+    default: return { label: "Sin datos", css: "bg-gray-100 text-gray-500 ring-1 ring-gray-300/20" };
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -185,6 +209,7 @@ export default function DashboardPage() {
   // ─── Client selection ─────────────────────────────────────────────────────
   const [selectedClientIds, setSelectedClientIds] = useState<Set<number>>(new Set());
   const [onlyActive, setOnlyActive] = useState(false);
+  const [onlyAtrasados, setOnlyAtrasados] = useState(false);
 
   // ─── Execution ────────────────────────────────────────────────────────────
   const [periodo, setPeriodo] = useState("1");
@@ -200,12 +225,21 @@ export default function DashboardPage() {
   const [showClientForm, setShowClientForm] = useState(false);
   const [editingClientId, setEditingClientId] = useState<number | null>(null);
   const [clientForm, setClientForm] = useState<ClienteCreate>({
-    nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true,
+    nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true, tipo_cliente: "no_empleador",
   });
   const [clientFormError, setClientFormError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [loadingPassword, setLoadingPassword] = useState(false);
 
   // ─── Download selection ───────────────────────────────────────────────────
   const [selectedDownloadRows, setSelectedDownloadRows] = useState<Set<number>>(new Set());
+
+  // ─── Form dictionary modal ────────────────────────────────────────────────
+  const [showDictModal, setShowDictModal] = useState(false);
+  const [dictEntries, setDictEntries] = useState<FormDictEntry[]>([]);
+  const [dictForm, setDictForm] = useState({ clave: "", descripcion: "" });
+  const [editingDictId, setEditingDictId] = useState<number | null>(null);
+  const [dictLoading, setDictLoading] = useState(false);
 
   // ─── Initial data load ────────────────────────────────────────────────────
   useEffect(() => {
@@ -249,15 +283,18 @@ export default function DashboardPage() {
   useEffect(() => {
     if (prevRunning.current && !status?.corriendo) {
       downloads.list().then(setRecords).catch(console.error);
+      clientsApi.list().then(setClientes).catch(console.error);
     }
     prevRunning.current = status?.corriendo ?? false;
   }, [status?.corriendo]);
 
   // ─── Client filtering ────────────────────────────────────────────────────
-  const visibleClientes = useMemo(
-    () => (onlyActive ? clientes.filter((c) => c.activo) : clientes),
-    [clientes, onlyActive]
-  );
+  const visibleClientes = useMemo(() => {
+    let filtered = clientes;
+    if (onlyActive) filtered = filtered.filter((c) => c.activo);
+    if (onlyAtrasados) filtered = filtered.filter((c) => c.estado_ddjj !== "al_dia");
+    return filtered;
+  }, [clientes, onlyActive, onlyAtrasados]);
 
   // ─── Client selection handlers ────────────────────────────────────────────
   function toggleClientSelection(id: number) {
@@ -304,8 +341,9 @@ export default function DashboardPage() {
   // ─── Client CRUD ──────────────────────────────────────────────────────────
   function openNewClient() {
     setEditingClientId(null);
-    setClientForm({ nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true });
+    setClientForm({ nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true, tipo_cliente: "no_empleador" });
     setClientFormError("");
+    setShowPassword(false);
     setShowClientForm(true);
   }
 
@@ -317,9 +355,30 @@ export default function DashboardPage() {
       clave_fiscal: "",
       cuit_consulta: c.cuit_consulta,
       activo: c.activo,
+      tipo_cliente: c.tipo_cliente || "no_empleador",
     });
     setClientFormError("");
+    setShowPassword(false);
     setShowClientForm(true);
+  }
+
+  async function handleShowPassword() {
+    if (!editingClientId) return;
+    if (showPassword) {
+      setShowPassword(false);
+      setClientForm((f) => ({ ...f, clave_fiscal: "" }));
+      return;
+    }
+    setLoadingPassword(true);
+    try {
+      const data = await clientsApi.getPassword(editingClientId);
+      setClientForm((f) => ({ ...f, clave_fiscal: data.clave_fiscal }));
+      setShowPassword(true);
+    } catch (err) {
+      setClientFormError(err instanceof Error ? err.message : "Error al obtener clave");
+    } finally {
+      setLoadingPassword(false);
+    }
   }
 
   async function saveClient() {
@@ -365,9 +424,9 @@ export default function DashboardPage() {
 
   // ─── Export downloads CSV ─────────────────────────────────────────────────
   function exportDownloadsCSV() {
-    const headers = ["Estado", "CUIT/CUIL", "Formulario", "Período", "Transacción", "Fecha de Presentación"];
+    const headers = ["Cliente", "Estado", "CUIT/CUIL", "Formulario", "Descripción", "Período", "Transacción", "Fecha de Presentación"];
     const csvRows = downloadTable.rows.map((r) => [
-      r.estado, r.cuit_cuil, r.formulario, r.periodo, r.transaccion, r.fecha_presentacion,
+      r.cliente_nombre, r.estado, r.cuit_cuil, r.formulario, r.descripcion_formulario, r.periodo, r.transaccion, r.fecha_presentacion,
     ]);
     const csv = [headers, ...csvRows].map((row) => row.map((c) => `"${c}"`).join(";")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
@@ -379,13 +438,65 @@ export default function DashboardPage() {
     URL.revokeObjectURL(url);
   }
 
+  // ─── Form dictionary handlers ─────────────────────────────────────────────
+  async function openDictModal() {
+    setShowDictModal(true);
+    setDictLoading(true);
+    try {
+      const entries = await formDictionary.list();
+      setDictEntries(entries);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDictLoading(false);
+    }
+  }
+
+  async function saveDictEntry() {
+    if (!dictForm.clave || !dictForm.descripcion) return;
+    try {
+      if (editingDictId) {
+        await formDictionary.update(editingDictId, dictForm);
+      } else {
+        await formDictionary.create(dictForm);
+      }
+      setDictForm({ clave: "", descripcion: "" });
+      setEditingDictId(null);
+      const updated = await formDictionary.list();
+      setDictEntries(updated);
+      // Refresh downloads to reflect new descriptions
+      downloads.list().then(setRecords).catch(console.error);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function deleteDictEntry(id: number) {
+    if (id === 0) return; // default entries can't be deleted
+    await formDictionary.delete(id);
+    const updated = await formDictionary.list();
+    setDictEntries(updated);
+    downloads.list().then(setRecords).catch(console.error);
+  }
+
+  function editDictEntry(entry: FormDictEntry) {
+    if (entry.is_default) {
+      // Create a tenant override from a default
+      setEditingDictId(null);
+      setDictForm({ clave: entry.clave, descripcion: entry.descripcion });
+    } else {
+      setEditingDictId(entry.id);
+      setDictForm({ clave: entry.clave, descripcion: entry.descripcion });
+    }
+  }
+
   // ─── Table hooks ──────────────────────────────────────────────────────────
   const clientTable = useTable<Cliente>({
     data: visibleClientes,
     defaultSort: "nombre",
     defaultSortDir: "asc",
     defaultPageSize: 25,
-    searchFields: ["nombre", "cuit_login", "cuit_consulta"],
+    searchFields: ["nombre", "cuit_login", "cuit_consulta", "tipo_cliente"],
     storageKey: "clients",
   });
 
@@ -404,7 +515,7 @@ export default function DashboardPage() {
     defaultSort: "fecha_presentacion",
     defaultSortDir: "desc",
     defaultPageSize: 25,
-    searchFields: ["estado", "cuit_cuil", "formulario", "periodo", "transaccion", "fecha_presentacion"],
+    searchFields: ["cliente_nombre", "estado", "cuit_cuil", "formulario", "descripcion_formulario", "periodo", "transaccion", "fecha_presentacion"],
     storageKey: "downloads",
   });
 
@@ -471,6 +582,15 @@ export default function DashboardPage() {
                 />
                 Solo activos
               </label>
+              <label className="flex items-center gap-1.5 text-sm text-gray-600 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onlyAtrasados}
+                  onChange={(e) => setOnlyAtrasados(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded border-gray-300 text-blue-600"
+                />
+                Solo atrasados
+              </label>
             </div>
             <button
               onClick={openNewClient}
@@ -483,7 +603,7 @@ export default function DashboardPage() {
           <TableToolbar
             search={clientTable.search}
             onSearch={clientTable.setSearch}
-            placeholder="Buscar por nombre, CUIT..."
+            placeholder="Buscar por nombre, CUIT, tipo..."
             totalFiltered={clientTable.totalFiltered}
             totalAll={clientTable.totalAll}
             page={clientTable.page}
@@ -517,7 +637,9 @@ export default function DashboardPage() {
                         { key: "nombre" as const, label: "Nombre" },
                         { key: "cuit_login" as const, label: "CUIT Login" },
                         { key: "cuit_consulta" as const, label: "CUIT Consulta" },
+                        { key: "tipo_cliente" as const, label: "Tipo" },
                         { key: "activo" as const, label: "Activo" },
+                        { key: "estado_ddjj" as const, label: "Último DDJJ" },
                       ] as const
                     ).map((col) => (
                       <th
@@ -537,50 +659,72 @@ export default function DashboardPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
-                  {clientTable.rows.map((c) => (
-                    <tr
-                      key={c.id}
-                      className={`transition-colors ${selectedClientIds.has(c.id) ? "bg-blue-50/60" : "hover:bg-gray-50/60"}`}
-                    >
-                      <td className="px-3 py-2.5">
-                        <input
-                          type="checkbox"
-                          checked={selectedClientIds.has(c.id)}
-                          onChange={() => toggleClientSelection(c.id)}
-                          className="h-4 w-4 rounded border-gray-300 text-blue-600"
-                        />
-                      </td>
-                      <td className="px-3 py-2.5 text-sm font-medium text-gray-900">{c.nombre}</td>
-                      <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_login}</td>
-                      <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_consulta}</td>
-                      <td className="px-3 py-2.5">
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                          c.activo ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
-                        }`}>
-                          {c.activo ? "Sí" : "No"}
-                        </span>
-                      </td>
-                      <td className="px-3 py-2.5 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openEditClient(c)}
-                            className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => deleteClient(c.id)}
-                            className="text-red-500 hover:text-red-700 text-xs font-medium"
-                          >
-                            Eliminar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {clientTable.rows.map((c) => {
+                    const ddjjStatus = estadoDdjjBadge(c.estado_ddjj);
+                    return (
+                      <tr
+                        key={c.id}
+                        className={`transition-colors ${selectedClientIds.has(c.id) ? "bg-blue-50/60" : "hover:bg-gray-50/60"}`}
+                      >
+                        <td className="px-3 py-2.5">
+                          <input
+                            type="checkbox"
+                            checked={selectedClientIds.has(c.id)}
+                            onChange={() => toggleClientSelection(c.id)}
+                            className="h-4 w-4 rounded border-gray-300 text-blue-600"
+                          />
+                        </td>
+                        <td className="px-3 py-2.5 text-sm font-medium text-gray-900">{c.nombre}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_login}</td>
+                        <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_consulta}</td>
+                        <td className="px-3 py-2.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            c.tipo_cliente === "empleador"
+                              ? "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20"
+                              : "bg-gray-100 text-gray-600 ring-1 ring-gray-300/20"
+                          }`}>
+                            {c.tipo_cliente === "empleador" ? "Empleador" : "No empleador"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                            c.activo ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
+                          }`}>
+                            {c.activo ? "Sí" : "No"}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-col">
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ddjjStatus.css}`}>
+                              {ddjjStatus.label}
+                            </span>
+                            {c.ultimo_periodo && (
+                              <span className="text-[10px] text-gray-400 mt-0.5">{c.ultimo_periodo}</span>
+                            )}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => openEditClient(c)}
+                              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => deleteClient(c.id)}
+                              className="text-red-500 hover:text-red-700 text-xs font-medium"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
                   {clientTable.rows.length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="py-10 text-center text-sm text-gray-500">
                         {clientes.length === 0
                           ? "No hay clientes cargados. Agregá uno con el botón de arriba."
                           : "Sin resultados para esta búsqueda"}
@@ -771,7 +915,7 @@ export default function DashboardPage() {
           <TableToolbar
             search={downloadTable.search}
             onSearch={downloadTable.setSearch}
-            placeholder="Buscar por CUIT, formulario, estado, periodo..."
+            placeholder="Buscar por cliente, CUIT, formulario, descripción, estado..."
             totalFiltered={downloadTable.totalFiltered}
             totalAll={downloadTable.totalAll}
             page={downloadTable.page}
@@ -789,6 +933,12 @@ export default function DashboardPage() {
                     Eliminar ({selectedDownloadRows.size})
                   </button>
                 )}
+                <button
+                  onClick={openDictModal}
+                  className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  Diccionario
+                </button>
                 <button
                   onClick={exportDownloadsCSV}
                   disabled={downloadTable.rows.length === 0}
@@ -820,9 +970,11 @@ export default function DashboardPage() {
                     </th>
                     {(
                       [
+                        { key: "cliente_nombre" as const, label: "Cliente" },
                         { key: "estado" as const, label: "Estado" },
                         { key: "cuit_cuil" as const, label: "CUIT/CUIL" },
                         { key: "formulario" as const, label: "Formulario" },
+                        { key: "descripcion_formulario" as const, label: "Descripción" },
                         { key: "periodo" as const, label: "Período" },
                         { key: "transaccion" as const, label: "Transacción" },
                         { key: "fecha_presentacion" as const, label: "Fecha Presentación" },
@@ -857,13 +1009,17 @@ export default function DashboardPage() {
                           className="h-4 w-4 rounded border-gray-300 text-blue-600"
                         />
                       </td>
+                      <td className="px-3 py-2.5 text-sm font-medium text-gray-900">{r.cliente_nombre}</td>
                       <td className="px-3 py-2.5">
                         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoDescargaBadge(r.estado)}`}>
                           {r.estado}
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-sm font-medium text-gray-900 tabular-nums">{r.cuit_cuil}</td>
+                      <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{r.cuit_cuil}</td>
                       <td className="px-3 py-2.5 text-sm text-gray-700">{r.formulario}</td>
+                      <td className="px-3 py-2.5 text-sm text-gray-500 italic">
+                        {r.descripcion_formulario || <span className="text-gray-300">—</span>}
+                      </td>
                       <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{r.periodo}</td>
                       <td className="px-3 py-2.5 text-sm text-gray-500 tabular-nums">{r.transaccion}</td>
                       <td className="px-3 py-2.5 text-sm text-gray-500">{r.fecha_presentacion}</td>
@@ -871,7 +1027,7 @@ export default function DashboardPage() {
                   ))}
                   {downloadTable.rows.length === 0 && (
                     <tr>
-                      <td colSpan={7} className="py-12 text-center">
+                      <td colSpan={9} className="py-12 text-center">
                         <svg className="mx-auto h-10 w-10 text-gray-300 mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
                         </svg>
@@ -931,13 +1087,26 @@ export default function DashboardPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Clave Fiscal {editingClientId && <span className="text-gray-400 font-normal">(dejar vacío para no cambiar)</span>}
                 </label>
-                <input
-                  type="password"
-                  value={clientForm.clave_fiscal}
-                  onChange={(e) => setClientForm({ ...clientForm, clave_fiscal: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  required={!editingClientId}
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={clientForm.clave_fiscal}
+                    onChange={(e) => setClientForm({ ...clientForm, clave_fiscal: e.target.value })}
+                    className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    required={!editingClientId}
+                  />
+                  <button
+                    type="button"
+                    onClick={editingClientId ? handleShowPassword : () => setShowPassword(!showPassword)}
+                    disabled={loadingPassword}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-gray-400 hover:text-gray-600 disabled:opacity-50"
+                    title={showPassword ? "Ocultar" : "Mostrar"}
+                  >
+                    {loadingPassword ? (
+                      <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                    ) : showPassword ? <EyeOffIcon /> : <EyeIcon />}
+                  </button>
+                </div>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">CUIT Consulta</label>
@@ -948,6 +1117,17 @@ export default function DashboardPage() {
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
                   required
                 />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Tipo de cliente</label>
+                <select
+                  value={clientForm.tipo_cliente}
+                  onChange={(e) => setClientForm({ ...clientForm, tipo_cliente: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                >
+                  <option value="no_empleador">No empleador</option>
+                  <option value="empleador">Empleador</option>
+                </select>
               </div>
               <label className="flex items-center gap-2 cursor-pointer">
                 <input
@@ -973,6 +1153,126 @@ export default function DashboardPage() {
                 Guardar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+         FORM DICTIONARY MODAL
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {showDictModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-2xl w-full p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Diccionario de Formularios</h3>
+              <button
+                onClick={() => { setShowDictModal(false); setEditingDictId(null); setDictForm({ clave: "", descripcion: "" }); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Add/Edit form */}
+            <div className="flex gap-2 mb-4">
+              <input
+                type="text"
+                placeholder="Clave (ej: 931 v4700)"
+                value={dictForm.clave}
+                onChange={(e) => setDictForm({ ...dictForm, clave: e.target.value })}
+                className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <input
+                type="text"
+                placeholder="Descripción (ej: DJ EMPLEADOR)"
+                value={dictForm.descripcion}
+                onChange={(e) => setDictForm({ ...dictForm, descripcion: e.target.value })}
+                className="flex-[2] px-3 py-2 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+              />
+              <button
+                onClick={saveDictEntry}
+                disabled={!dictForm.clave || !dictForm.descripcion}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+              >
+                {editingDictId ? "Actualizar" : "Agregar"}
+              </button>
+              {editingDictId && (
+                <button
+                  onClick={() => { setEditingDictId(null); setDictForm({ clave: "", descripcion: "" }); }}
+                  className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+
+            {/* Entries table */}
+            <div className="overflow-y-auto flex-1 border border-gray-200 rounded-lg">
+              {dictLoading ? (
+                <div className="py-8 text-center">
+                  <div className="inline-block h-5 w-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                </div>
+              ) : (
+                <table className="min-w-full">
+                  <thead className="sticky top-0 bg-gray-50">
+                    <tr className="border-b border-gray-200">
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Clave</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Descripción</th>
+                      <th className="px-4 py-2 text-left text-xs font-semibold text-gray-600 uppercase">Tipo</th>
+                      <th className="px-4 py-2 text-right text-xs font-semibold text-gray-600 uppercase">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {dictEntries.map((entry) => (
+                      <tr key={`${entry.id}-${entry.clave}`} className="hover:bg-gray-50/60">
+                        <td className="px-4 py-2 text-sm font-mono text-gray-900">{entry.clave}</td>
+                        <td className="px-4 py-2 text-sm text-gray-700">{entry.descripcion}</td>
+                        <td className="px-4 py-2">
+                          <span className={`text-xs px-2 py-0.5 rounded-full ${
+                            entry.is_default
+                              ? "bg-gray-100 text-gray-500"
+                              : "bg-blue-50 text-blue-700"
+                          }`}>
+                            {entry.is_default ? "Por defecto" : "Personalizado"}
+                          </span>
+                        </td>
+                        <td className="px-4 py-2 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => editDictEntry(entry)}
+                              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
+                            >
+                              {entry.is_default ? "Personalizar" : "Editar"}
+                            </button>
+                            {!entry.is_default && (
+                              <button
+                                onClick={() => deleteDictEntry(entry.id)}
+                                className="text-red-500 hover:text-red-700 text-xs font-medium"
+                              >
+                                Eliminar
+                              </button>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                    {dictEntries.length === 0 && (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-sm text-gray-500">
+                          Sin entradas en el diccionario
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+            <p className="mt-3 text-xs text-gray-400">
+              Las entradas por defecto aplican a todos los tenants. Las personalizadas son exclusivas de tu cuenta y tienen prioridad.
+            </p>
           </div>
         </div>
       )}

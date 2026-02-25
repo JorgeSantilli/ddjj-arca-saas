@@ -9,7 +9,7 @@ export default function ClientsPage() {
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [form, setForm] = useState<ClienteCreate>({
-    nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true,
+    nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true, tipo_cliente: "no_empleador",
   });
   const [error, setError] = useState("");
 
@@ -26,14 +26,14 @@ export default function ClientsPage() {
   }
 
   function openCreate() {
-    setForm({ nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true });
+    setForm({ nombre: "", cuit_login: "", clave_fiscal: "", cuit_consulta: "", activo: true, tipo_cliente: "no_empleador" });
     setEditingId(null);
     setShowForm(true);
     setError("");
   }
 
   function openEdit(c: Cliente) {
-    setForm({ nombre: c.nombre, cuit_login: c.cuit_login, clave_fiscal: "", cuit_consulta: c.cuit_consulta, activo: c.activo });
+    setForm({ nombre: c.nombre, cuit_login: c.cuit_login, clave_fiscal: "", cuit_consulta: c.cuit_consulta, activo: c.activo, tipo_cliente: c.tipo_cliente || "no_empleador" });
     setEditingId(c.id);
     setShowForm(true);
     setError("");

@@ -14,6 +14,7 @@ class Cliente(Base):
     clave_fiscal = Column(String(200), nullable=False)
     cuit_consulta = Column(String(20), nullable=False)
     activo = Column(Boolean, default=True)
+    tipo_cliente = Column(String(20), nullable=False, default="no_empleador")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     tenant = relationship("Tenant", back_populates="clientes")

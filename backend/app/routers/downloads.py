@@ -1,11 +1,10 @@
-import csv
 import logging
 import os
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import FileResponse
-from sqlalchemy import select, delete
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_tenant_id, get_current_user
@@ -14,6 +13,7 @@ from app.db import get_db
 from app.models.download import Descarga
 from app.models.client import Cliente
 from app.models.user import User
+from app.routers.form_dictionary import get_form_descriptions, lookup_description
 
 logger = logging.getLogger("downloads")
 
@@ -35,6 +35,9 @@ async def list_downloads(
     )
     rows = result.all()
 
+    # Build form description lookup
+    form_dict = await get_form_descriptions(db, tenant_id)
+
     return [
         {
             "id": d.id,
@@ -43,6 +46,7 @@ async def list_downloads(
             "estado": d.estado,
             "cuit_cuil": d.cuit_cuil,
             "formulario": d.formulario,
+            "descripcion_formulario": lookup_description(form_dict, d.formulario),
             "periodo": d.periodo,
             "transaccion": d.transaccion,
             "fecha_presentacion": d.fecha_presentacion,
