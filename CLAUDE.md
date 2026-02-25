@@ -26,27 +26,28 @@ uvicorn app.main:app --reload --port 8000
 # Frontend dev
 cd frontend && npm install && npm run dev
 
-# Docker (full stack)
-docker-compose up
-
 # Deploy to Railway
 railway service backend && railway up --detach
 railway service frontend && railway up --detach
 ```
 
 ## Architecture
-- `backend/app/main.py` — FastAPI app with CORS, lifespan auto-creates tables
+- `backend/app/main.py` — FastAPI app with CORS, lifespan auto-creates tables + inline ALTER TABLE migrations
 - `backend/app/db.py` — Async SQLAlchemy engine + session
-- `backend/app/models/` — Tenant, User, Cliente, Consulta, Descarga
-- `backend/app/models/download.py` — Descarga model (DDJJ records extracted from ARCA)
-- `backend/app/routers/` — auth, clients, consultations, downloads, admin
+- `backend/app/models/` — Tenant, User, Cliente, Consulta, Descarga, FormularioDescripcion
+- `backend/app/models/form_dictionary.py` — FormularioDescripcion model (per-tenant form labels)
+- `backend/app/routers/` — auth, clients, consultations, downloads, form_dictionary, admin
+- `backend/app/routers/clients.py` — Client CRUD + ultimo_periodo/estado_ddjj enrichment + password endpoint
+- `backend/app/routers/form_dictionary.py` — CRUD for form descriptions + DEFAULT_FORM_DICT + normalize_form_key()
+- `backend/app/routers/downloads.py` — Downloads with descripcion_formulario lookup from dictionary
+- `backend/app/schemas/client.py` — ClienteResponse includes tipo_cliente, ultimo_periodo, estado_ddjj
 - `backend/app/auth/` — JWT creation/verification, password hashing, dependencies
 - `backend/app/services/scraper.py` — ARCAScraper class (Playwright automation + table extraction)
 - `backend/app/services/email.py` — Resend email notifications
 - `backend/app/tasks/runner.py` — In-process async task runner (sequential queue)
 - `frontend/src/app/dashboard/page.tsx` — Unified "Centro de Operaciones" (clients + consultations + downloads)
 - `frontend/src/hooks/useTable.ts` — Reusable table hook (sort, search, pagination, sessionStorage persistence)
-- `frontend/src/lib/api.ts` — API client with typed functions
+- `frontend/src/lib/api.ts` — API client with typed functions (clients, consultations, downloads, formDictionary)
 - `frontend/src/app/api/v1/[...proxy]/route.ts` — BFF proxy to backend
 
 ## Scraping Architecture (MVP)
@@ -56,13 +57,27 @@ railway service frontend && railway up --detach
 - **Data capture**: `extraer_tabla()` reads ARCA HTML table via `page.evaluate()` → saves to `descargas` DB table
 - CSV files also downloaded to Railway Volume at `/app/descargas`
 - `/consultations/logs` endpoint exposes real-time scraper logs to the frontend
-- Frontend has a log viewer panel (dark terminal style) with auto-refresh
 
 ## Downloads / Descargas
 - DDJJ data is extracted from the ARCA HTML table (NOT from CSV parsing)
 - Stored in `descargas` PostgreSQL table with columns: estado, cuit_cuil, formulario, periodo, transaccion, fecha_presentacion
 - Frontend shows sortable/searchable table with color-coded estado badges
+- Columns include cliente_nombre (joined) and descripcion_formulario (from dictionary)
 - CSV files still downloaded to volume as backup, but DB is source of truth
+
+## Form Dictionary
+- Default form descriptions in `DEFAULT_FORM_DICT` constant (backend/app/routers/form_dictionary.py)
+- Tenant-specific overrides stored in `formulario_descripciones` table
+- Matching uses `normalize_form_key()`: lowercase, strip non-alnum, remove leading "f" before digits
+- CRUD via `/api/v1/form-dictionary/` endpoints
+- Frontend modal in DDJJ section for managing entries
+
+## Client Features
+- **tipo_cliente**: "empleador" / "no_empleador" enum field
+- **ultimo_periodo**: MAX(descargas.periodo) per client, computed in list endpoint
+- **estado_ddjj**: al_dia / atrasado_1 / atrasado_critico / sin_datos (vs fiscal month)
+- **Password visibility**: GET /clients/{id}/password returns clave_fiscal (stored plain text)
+- **Filters**: "Solo activos" + "Solo atrasados" toggles
 
 ## Key Constraints
 - **Sequential scraping only** — never parallel browser instances (ARCA blocks)
@@ -83,6 +98,11 @@ railway service frontend && railway up --detach
 ## Multi-Tenant Pattern
 Every data model has `tenant_id` column. Every route uses `get_current_tenant_id()` dependency to filter data. JWT contains `tenant_id` claim.
 
+## DB Migrations (CRITICAL)
+- **No Alembic** — using `Base.metadata.create_all` in lifespan (creates new tables only)
+- **`create_all` does NOT alter existing tables** — new columns require explicit `ALTER TABLE ADD COLUMN IF NOT EXISTS` in lifespan migrations array
+- Migration SQL statements are in `backend/app/main.py` lifespan function
+
 ## Railway Deployment
 - **Frontend**: https://frontend-production-ca6d.up.railway.app
 - **Backend**: https://backend-production-b04c.up.railway.app
@@ -100,6 +120,7 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - **Navigation**: "Operaciones" (unified) + "Descargas" (standalone) + Admin (superadmin only)
 - **`skipTrailingSlashRedirect: true`** in `next.config.ts` — CRITICAL: prevents Next.js 308 redirects that strip cookies from BFF proxy API calls
 - **API URLs use trailing slashes** (`/clients/`, `/downloads/`) — FastAPI requires them
+- **Form dictionary modal**: accessible from DDJJ section, CRUD for formulario descriptions
 
 ## CSS / Tailwind Notes
 - Tailwind v4 dark mode can make input text invisible on white backgrounds
