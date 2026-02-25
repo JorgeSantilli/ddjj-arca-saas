@@ -115,6 +115,7 @@ export interface Tenant {
   email: string;
   plan: string;
   activo: boolean;
+  created_at: string;
 }
 
 export interface Cliente {
