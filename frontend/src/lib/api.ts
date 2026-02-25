@@ -23,7 +23,7 @@ async function fetchApi<T = unknown>(path: string, options: FetchOptions = {}): 
   });
 
   if (res.status === 401) {
-    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+    if (typeof window !== "undefined" && !["/" , "/login", "/register"].includes(window.location.pathname)) {
       window.location.href = "/login";
     }
     throw new Error("No autenticado");
