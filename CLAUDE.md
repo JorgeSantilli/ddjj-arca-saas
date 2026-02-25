@@ -1,7 +1,7 @@
-# CLAUDE.md - DDJJ-ARCA SaaS
+# CLAUDE.md - DJControl (formerly DDJJ-ARCA SaaS)
 
 ## Project Overview
-Multi-tenant SaaS for accountants to automate ARCA (ex-AFIP) DDJJ consultation and CSV downloads via browser automation. Each accountant (tenant) manages their own clients with CUIT + clave fiscal credentials.
+**DJControl** — Multi-tenant SaaS for accountants to automate ARCA (ex-AFIP) DDJJ consultation and CSV downloads via browser automation. Each accountant (tenant) manages their own clients with CUIT + clave fiscal credentials.
 
 ## Tech Stack
 - **Backend**: Python FastAPI (async) + SQLAlchemy 2.0 + PostgreSQL
@@ -47,6 +47,8 @@ railway service frontend && railway up --detach
 - `backend/app/tasks/runner.py` — In-process async task runner (sequential queue)
 - `frontend/src/app/dashboard/page.tsx` — Unified "Centro de Operaciones" (clients + consultations + downloads)
 - `frontend/src/hooks/useTable.ts` — Reusable table hook (sort, search, pagination, sessionStorage persistence)
+- `frontend/src/app/page.tsx` — DJControl commercial landing page (public, redirects to /dashboard if logged in)
+- `frontend/src/app/admin/tenants/page.tsx` — Enriched admin tenants: summary cards + per-studio stats
 - `frontend/src/lib/api.ts` — API client with typed functions (clients, consultations, downloads, formDictionary)
 - `frontend/src/app/api/v1/[...proxy]/route.ts` — BFF proxy to backend
 
@@ -121,6 +123,18 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - **`skipTrailingSlashRedirect: true`** in `next.config.ts` — CRITICAL: prevents Next.js 308 redirects that strip cookies from BFF proxy API calls
 - **API URLs use trailing slashes** (`/clients/`, `/downloads/`) — FastAPI requires them
 - **Form dictionary modal**: accessible from DDJJ section, CRUD for formulario descriptions
+
+## Landing Page & Branding
+- Brand name: **DJControl** (updated across login, register, dashboard, admin)
+- Route `/` shows commercial landing if user is not authenticated
+- If authenticated, `/` redirects to `/dashboard`
+- **fetchApi 401 redirect excludes public routes** (`/`, `/login`, `/register`) to prevent redirect loops
+
+## Admin Panel
+- `/admin` — Global stats: tenants, users, clients, consultations, success rate
+- `/admin/tenants` — Per-studio detail: summary cards (total studios, clients, consultations) + table with clients_count, consultas_count, registration date, active/inactive toggle
+- Superadmin user: jorgesantilli1@gmail.com (is_superadmin=true, promoted via direct DB UPDATE)
+- To promote a user: `UPDATE users SET is_superadmin = true WHERE email = '...'` via Postgres public URL
 
 ## CSS / Tailwind Notes
 - Tailwind v4 dark mode can make input text invisible on white backgrounds
