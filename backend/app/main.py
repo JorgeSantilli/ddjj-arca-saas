@@ -21,6 +21,12 @@ async def lifespan(app: FastAPI):
     from app.models import Tenant, User, Cliente, Consulta, FormularioDescripcion  # noqa: F401
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        # Add missing columns to existing tables (no-op if already exists)
+        migrations = [
+            "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS tipo_cliente VARCHAR(20) NOT NULL DEFAULT 'no_empleador'",
+        ]
+        for sql in migrations:
+            await conn.execute(__import__("sqlalchemy").text(sql))
     os.makedirs(settings.DOWNLOAD_DIR, exist_ok=True)
     yield
     # Shutdown
