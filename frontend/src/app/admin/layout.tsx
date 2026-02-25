@@ -33,7 +33,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <header className="bg-gray-800 text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold text-yellow-400">DDJJ-ARCA Admin</h1>
+            <h1 className="text-xl font-bold text-yellow-400">DJControl Admin</h1>
             <nav className="flex gap-1">
               <Link
                 href="/admin"

@@ -53,7 +53,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="max-w-md w-full space-y-8 p-8 bg-white rounded-lg shadow-md">
         <div>
-          <h1 className="text-3xl font-bold text-center text-gray-900">DDJJ-ARCA</h1>
+          <h1 className="text-3xl font-bold text-center text-gray-900">DJControl</h1>
           <p className="mt-2 text-center text-gray-600">
             Inicia sesion en tu cuenta
           </p>

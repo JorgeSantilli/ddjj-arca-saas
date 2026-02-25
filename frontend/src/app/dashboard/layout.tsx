@@ -39,7 +39,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <header className="bg-blue-900 text-white shadow-md">
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <h1 className="text-xl font-bold">DDJJ-ARCA</h1>
+            <h1 className="text-xl font-bold">DJControl</h1>
             <nav className="hidden md:flex gap-1">
               {navItems.map((item) => (
                 <Link
