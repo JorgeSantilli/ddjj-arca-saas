@@ -11,7 +11,7 @@ from app.db import get_db
 from app.models.client import Cliente
 from app.models.download import Descarga
 from app.models.user import User
-from app.schemas.client import ClienteCreate, ClienteResponse, ClienteUpdate
+from app.schemas.client import ClienteCreate, ClienteImportRequest, ClienteImportResult, ClienteImportError, ClienteResponse, ClienteUpdate
 
 router = APIRouter(prefix="/api/v1/clients", tags=["clients"])
 
@@ -92,6 +92,65 @@ async def list_clients(
         response.append(data)
 
     return response
+
+
+@router.post("/import", response_model=ClienteImportResult)
+async def import_clients(
+    payload: ClienteImportRequest,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+):
+    """Importar clientes desde CSV parseado en frontend."""
+    created = 0
+    updated = 0
+    errors: list[ClienteImportError] = []
+
+    for i, row in enumerate(payload.clientes):
+        # Validate CUIT (11 digits)
+        cuit_clean = re.sub(r"\D", "", row.cuit_login)
+        if len(cuit_clean) != 11:
+            errors.append(ClienteImportError(row=i + 1, nombre=row.nombre, error=f"CUIT login inválido: {row.cuit_login}"))
+            continue
+        if not row.nombre.strip():
+            errors.append(ClienteImportError(row=i + 1, nombre=row.nombre or "(vacío)", error="Nombre vacío"))
+            continue
+        if not row.clave_fiscal.strip():
+            errors.append(ClienteImportError(row=i + 1, nombre=row.nombre, error="Clave fiscal vacía"))
+            continue
+
+        cuit_consulta_clean = re.sub(r"\D", "", row.cuit_consulta) if row.cuit_consulta else cuit_clean
+
+        # Check for existing client by cuit_login within tenant
+        result = await db.execute(
+            select(Cliente).where(Cliente.tenant_id == tenant_id, Cliente.cuit_login == cuit_clean)
+        )
+        existing = result.scalar_one_or_none()
+
+        if existing:
+            # Update existing
+            existing.nombre = row.nombre.strip()
+            existing.clave_fiscal = row.clave_fiscal.strip()
+            existing.cuit_consulta = cuit_consulta_clean
+            existing.tipo_cliente = row.tipo_cliente if row.tipo_cliente in ("empleador", "no_empleador") else "no_empleador"
+            existing.activo = row.activo
+            updated += 1
+        else:
+            # Create new
+            cliente = Cliente(
+                tenant_id=tenant_id,
+                nombre=row.nombre.strip(),
+                cuit_login=cuit_clean,
+                clave_fiscal=row.clave_fiscal.strip(),
+                cuit_consulta=cuit_consulta_clean,
+                tipo_cliente=row.tipo_cliente if row.tipo_cliente in ("empleador", "no_empleador") else "no_empleador",
+                activo=row.activo,
+            )
+            db.add(cliente)
+            created += 1
+
+    await db.commit()
+    return ClienteImportResult(created=created, updated=updated, errors=errors)
 
 
 @router.post("/", response_model=ClienteResponse, status_code=status.HTTP_201_CREATED)

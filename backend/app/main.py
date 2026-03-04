@@ -24,6 +24,8 @@ async def lifespan(app: FastAPI):
         # Add missing columns to existing tables (no-op if already exists)
         migrations = [
             "ALTER TABLE clientes ADD COLUMN IF NOT EXISTS tipo_cliente VARCHAR(20) NOT NULL DEFAULT 'no_empleador'",
+            "ALTER TABLE consultas ADD COLUMN IF NOT EXISTS error_categoria VARCHAR(30)",
+            "ALTER TABLE consultas ADD COLUMN IF NOT EXISTS reintentos INTEGER NOT NULL DEFAULT 0",
         ]
         for sql in migrations:
             await conn.execute(__import__("sqlalchemy").text(sql))

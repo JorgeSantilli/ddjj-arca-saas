@@ -9,6 +9,49 @@ from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeo
 logger = logging.getLogger("scraper")
 
 
+# ─── Error classification ──────────────────────────────────────────────────────
+ERROR_PATTERNS = {
+    "credenciales": [
+        "login fallido", "contrasena", "password", "clave fiscal",
+        "credencial", "acceso denegado", "usuario no", "cuit incorrecto",
+    ],
+    "cuit_no_encontrado": [
+        "cuit", "no encontrado", "no se encontro el campo",
+        "opciones:", "no aparecio",
+    ],
+    "timeout": [
+        "timeout", "expirad", "timed out",
+    ],
+    "sin_resultados": [
+        "no se encontraron", "sin resultados", "sin ddjj",
+    ],
+    "arca_error": [
+        "error en plataforma", "error en consulta", "navegar a",
+        "no se pudo", "no hay boton",
+    ],
+}
+
+TRANSIENT_CATEGORIES = {"timeout", "arca_error"}
+
+ERROR_LABELS = {
+    "credenciales": "Credenciales incorrectas",
+    "cuit_no_encontrado": "CUIT de consulta no encontrado",
+    "timeout": "Sesión expirada o timeout",
+    "sin_resultados": "Sin resultados para el período",
+    "arca_error": "Error en plataforma ARCA",
+    "desconocido": "Error desconocido",
+}
+
+
+def clasificar_error(msg: str) -> str:
+    """Classify a raw error message into a known category."""
+    lower = msg.lower()
+    for category, keywords in ERROR_PATTERNS.items():
+        if any(kw in lower for kw in keywords):
+            return category
+    return "desconocido"
+
+
 class ARCAScraper:
     """
     Automatiza el flujo ARCA:
@@ -158,78 +201,95 @@ class ARCAScraper:
             time.sleep(1)
         return False
 
+    def _click_y_esperar_seti(self, elemento):
+        """Click en un elemento y esperar que se abra SETI (nueva pestaña o misma)."""
+        try:
+            with self.context.expect_page(timeout=10000) as new_page_info:
+                elemento.click()
+            new_page = new_page_info.value
+            new_page.wait_for_load_state("domcontentloaded", timeout=15000)
+            if "seti" in new_page.url:
+                self.page = new_page
+                logger.info(f"[NAV] En SETI (nueva pestana): {self.page.url}")
+                return True
+        except Exception:
+            if self._esperar_seti(timeout=8):
+                return True
+        return False
+
     def navegar_a_ddjj(self):
         logger.info("[NAV] Buscando servicio DDJJ...")
         self._screenshot("portal")
 
-        # Estrategia 1: Acceso directo
-        try:
-            acceso = self.page.locator("text=Presentación de DDJJ y Pagos").first
-            if acceso.is_visible(timeout=5000):
-                logger.info("[NAV] Click acceso directo...")
-                with self.context.expect_page(timeout=10000) as new_page_info:
-                    acceso.click()
-                new_page = new_page_info.value
-                new_page.wait_for_load_state("domcontentloaded", timeout=15000)
-                if "seti" in new_page.url:
-                    self.page = new_page
-                    logger.info(f"[NAV] En SETI (nueva pestana): {self.page.url}")
-                    return {"exito": True}
-        except Exception as e:
-            logger.info(f"[NAV] Acceso directo no abrio pestana: {e}")
-            if self._esperar_seti(timeout=5):
-                return {"exito": True}
+        # Estrategia 1: Acceso directo en "Servicios | Mas utilizados"
+        # Probar varias variantes del texto (con/sin tilde)
+        for texto_buscar in [
+            "Presentación de DDJJ y Pagos",
+            "Presentacion de DDJJ y Pagos",
+            "DDJJ y Pagos",
+        ]:
+            try:
+                acceso = self.page.locator(f"text={texto_buscar}").first
+                if acceso.is_visible(timeout=3000):
+                    logger.info(f"[NAV] Click acceso directo: '{texto_buscar}'...")
+                    if self._click_y_esperar_seti(acceso):
+                        return {"exito": True}
+            except Exception as e:
+                logger.info(f"[NAV] Acceso directo '{texto_buscar}' fallo: {e}")
 
-        # Estrategia 2: Buscador typeahead
+        # Estrategia 2: Buscador typeahead con texto especifico
         logger.info("[NAV] Probando buscador...")
-        try:
-            buscador = self.page.locator("#buscadorInput")
-            if not buscador.is_visible(timeout=3000):
-                buscador = self.page.locator("input[placeholder*='necesit'], input[placeholder*='Busc']").first
-            buscador.click()
-            self._delay(0.5, 1.0)
-            buscador.fill("DDJJ")
-            self._delay(2.0, 3.0)
-            self._screenshot("buscador")
+        # Buscar "Presentacion de DDJJ" para obtener el resultado correcto
+        # (buscar solo "DDJJ" retorna otros servicios como "DDJJ Ley 17.250")
+        for termino_busqueda in ["Presentacion de DDJJ", "DDJJ y Pagos"]:
+            try:
+                buscador = self.page.locator("#buscadorInput")
+                if not buscador.is_visible(timeout=3000):
+                    buscador = self.page.locator("input[placeholder*='necesit'], input[placeholder*='Busc']").first
+                buscador.click()
+                self._delay(0.3, 0.5)
+                buscador.fill("")
+                self._delay(0.2, 0.4)
+                buscador.fill(termino_busqueda)
+                self._delay(2.0, 3.0)
+                self._screenshot("buscador")
 
-            resultado = self.page.locator("[id*='rbt-menu-item']").first
-            if resultado.is_visible(timeout=5000):
-                texto = resultado.text_content()[:80]
-                logger.info(f"[NAV] Resultado: {texto}")
-                if "resentaci" in texto or "DDJJ" in texto:
-                    try:
-                        with self.context.expect_page(timeout=10000) as new_page_info:
-                            resultado.click()
-                        new_page = new_page_info.value
-                        new_page.wait_for_load_state("domcontentloaded", timeout=15000)
-                        if "seti" in new_page.url:
-                            self.page = new_page
-                            logger.info(f"[NAV] En SETI via buscador: {self.page.url}")
-                            return {"exito": True}
-                    except Exception:
-                        if self._esperar_seti(timeout=8):
-                            return {"exito": True}
-        except Exception as e:
-            logger.warning(f"[NAV] Buscador fallo: {e}")
+                # Recorrer TODOS los resultados, no solo el primero
+                resultados = self.page.locator("[id*='rbt-menu-item']")
+                count = resultados.count()
+                logger.info(f"[NAV] Buscador '{termino_busqueda}': {count} resultados")
 
-        # Estrategia 3: Scroll y buscar en servicios
+                for i in range(min(count, 5)):
+                    texto = resultados.nth(i).text_content()[:120]
+                    logger.info(f"[NAV]   Resultado {i}: {texto}")
+                    # Solo clickear si contiene "resentaci" (Presentación/Presentacion)
+                    # y "Pagos" para asegurar que es el servicio SETI correcto
+                    if "resentaci" in texto and "agos" in texto:
+                        logger.info(f"[NAV] Clickeando resultado {i}...")
+                        if self._click_y_esperar_seti(resultados.nth(i)):
+                            return {"exito": True}
+                        break
+            except Exception as e:
+                logger.warning(f"[NAV] Buscador '{termino_busqueda}' fallo: {e}")
+
+        # Estrategia 3: Scroll y buscar link con texto especifico en servicios
         logger.info("[NAV] Buscando en servicios...")
         try:
             self.page.evaluate("window.scrollTo(0, document.body.scrollHeight)")
             self._delay(1.0, 2.0)
-            link = self.page.locator("a:has-text('DDJJ')").first
-            if link.is_visible(timeout=5000):
+            # Buscar link que contenga "DDJJ y Pagos" (mas especifico que solo "DDJJ")
+            for selector in [
+                "a:has-text('DDJJ y Pagos')",
+                "a:has-text('Presentación de DDJJ')",
+                "a:has-text('Presentacion de DDJJ')",
+            ]:
                 try:
-                    with self.context.expect_page(timeout=10000) as new_page_info:
-                        link.click()
-                    new_page = new_page_info.value
-                    new_page.wait_for_load_state("domcontentloaded", timeout=15000)
-                    if "seti" in new_page.url:
-                        self.page = new_page
-                        return {"exito": True}
+                    link = self.page.locator(selector).first
+                    if link.is_visible(timeout=2000):
+                        if self._click_y_esperar_seti(link):
+                            return {"exito": True}
                 except Exception:
-                    if self._esperar_seti(timeout=8):
-                        return {"exito": True}
+                    pass
         except Exception:
             pass
 

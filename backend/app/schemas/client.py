@@ -20,6 +20,31 @@ class ClienteUpdate(BaseModel):
     tipo_cliente: str | None = None
 
 
+class ClienteImportRow(BaseModel):
+    nombre: str
+    cuit_login: str
+    clave_fiscal: str
+    cuit_consulta: str
+    activo: bool = True
+    tipo_cliente: str = "no_empleador"
+
+
+class ClienteImportRequest(BaseModel):
+    clientes: list[ClienteImportRow]
+
+
+class ClienteImportError(BaseModel):
+    row: int
+    nombre: str
+    error: str
+
+
+class ClienteImportResult(BaseModel):
+    created: int
+    updated: int
+    errors: list[ClienteImportError]
+
+
 class ClienteResponse(BaseModel):
     id: int
     nombre: str

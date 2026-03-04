@@ -116,6 +116,7 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
             if resultado["exito"]:
                 consulta.estado = "exitoso"
                 consulta.archivo_csv = resultado.get("archivo")
+                consulta.error_categoria = None
                 logger.info(f"Consulta {consulta_id} exitosa: {resultado.get('archivo')}")
 
                 # Save table data extracted from ARCA screen
@@ -136,9 +137,28 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
                         db.add(descarga)
                     logger.info(f"Guardados {len(tabla_datos)} registros de tabla ARCA en DB")
             else:
-                consulta.estado = "error"
-                consulta.error_detalle = resultado.get("error", "Error desconocido")
-                logger.warning(f"Consulta {consulta_id} error: {consulta.error_detalle}")
+                from app.services.scraper import clasificar_error, TRANSIENT_CATEGORIES
+
+                error_msg = resultado.get("error", "Error desconocido")
+                categoria = clasificar_error(error_msg)
+                consulta.error_detalle = error_msg
+                consulta.error_categoria = categoria
+
+                # Auto-retry for transient errors (max 1 retry)
+                if categoria in TRANSIENT_CATEGORIES and consulta.reintentos < 1:
+                    consulta.reintentos += 1
+                    consulta.estado = "pendiente"
+                    db.commit()
+                    logger.info(f"Consulta {consulta_id} error transitorio ({categoria}), reintento #{consulta.reintentos}")
+                    # Re-enqueue
+                    import asyncio
+                    loop = asyncio.get_event_loop()
+                    if loop.is_running():
+                        asyncio.run_coroutine_threadsafe(enqueue_scraping(consulta_id, tenant_id), loop)
+                    return
+                else:
+                    consulta.estado = "error"
+                    logger.warning(f"Consulta {consulta_id} error definitivo ({categoria}): {error_msg}")
 
             db.commit()
 

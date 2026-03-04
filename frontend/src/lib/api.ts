@@ -59,6 +59,8 @@ export const clients = {
     fetchApi<Cliente>(`/clients/${id}`, { method: "PUT", json: data }),
   delete: (id: number) => fetchApi(`/clients/${id}`, { method: "DELETE" }),
   getPassword: (id: number) => fetchApi<{ clave_fiscal: string }>(`/clients/${id}/password`),
+  import: (data: { clientes: ClienteImportRow[] }) =>
+    fetchApi<ClienteImportResult>("/clients/import", { method: "POST", json: data }),
 };
 
 // Consultations
@@ -70,6 +72,9 @@ export const consultations = {
   delete: (id: number) => fetchApi(`/consultations/${id}`, { method: "DELETE" }),
   deleteBatch: (ids: number[]) =>
     fetchApi("/consultations/delete-batch", { method: "POST", json: ids }),
+  retry: (id: number) => fetchApi(`/consultations/${id}/retry`, { method: "POST" }),
+  retryBatch: (ids: number[]) =>
+    fetchApi<{ consulta_ids: number[] }>("/consultations/retry-batch", { method: "POST", json: ids }),
   logs: (lines = 100) => fetchApi<{ logs: string[] }>(`/consultations/logs?lines=${lines}`),
 };
 
@@ -146,6 +151,8 @@ export interface Consulta {
   periodo: string;
   estado: string;
   error_detalle: string | null;
+  error_categoria: string | null;
+  reintentos: number;
   archivo_csv: string | null;
   created_at: string;
 }
@@ -176,6 +183,27 @@ export interface FormDictEntry {
   clave: string;
   descripcion: string;
   is_default: boolean;
+}
+
+export interface ClienteImportRow {
+  nombre: string;
+  cuit_login: string;
+  clave_fiscal: string;
+  cuit_consulta: string;
+  activo: boolean;
+  tipo_cliente: string;
+}
+
+export interface ClienteImportError {
+  row: number;
+  nombre: string;
+  error: string;
+}
+
+export interface ClienteImportResult {
+  created: number;
+  updated: number;
+  errors: ClienteImportError[];
 }
 
 export interface AdminStats {

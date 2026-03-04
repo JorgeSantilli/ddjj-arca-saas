@@ -13,6 +13,8 @@ class Consulta(Base):
     periodo = Column(String(10), nullable=False)
     estado = Column(String(20), default="pendiente")
     error_detalle = Column(Text, nullable=True)
+    error_categoria = Column(String(30), nullable=True)
+    reintentos = Column(Integer, default=0, server_default="0")
     archivo_csv = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

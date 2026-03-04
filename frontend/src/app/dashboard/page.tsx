@@ -10,6 +10,8 @@ import {
 import type {
   Cliente,
   ClienteCreate,
+  ClienteImportRow,
+  ClienteImportResult,
   ConsultaStatus,
   Consulta,
   DownloadRecord,
@@ -195,6 +197,75 @@ function estadoDdjjBadge(estado: string) {
   }
 }
 
+// ─── Error category labels ───────────────────────────────────────────────────
+const ERROR_CATEGORY_LABELS: Record<string, string> = {
+  credenciales: "Credenciales incorrectas",
+  cuit_no_encontrado: "CUIT no encontrado",
+  timeout: "Timeout / sesión expirada",
+  sin_resultados: "Sin resultados",
+  arca_error: "Error en ARCA",
+  desconocido: "Error desconocido",
+};
+
+function errorCategoriaBadge(categoria: string | null) {
+  if (!categoria) return null;
+  const label = ERROR_CATEGORY_LABELS[categoria] || categoria;
+  const css = categoria === "credenciales" || categoria === "cuit_no_encontrado"
+    ? "bg-red-50 text-red-700 ring-1 ring-red-600/20"
+    : categoria === "timeout" || categoria === "arca_error"
+    ? "bg-amber-50 text-amber-700 ring-1 ring-amber-600/20"
+    : "bg-gray-100 text-gray-600 ring-1 ring-gray-300/20";
+  return { label, css };
+}
+
+// ─── CSV parser ──────────────────────────────────────────────────────────────
+function parseCSV(text: string): Record<string, string>[] {
+  const lines = text.split(/\r?\n/).filter((l) => l.trim());
+  if (lines.length < 2) return [];
+
+  // Detect separator
+  const firstLine = lines[0];
+  const sep = firstLine.includes("\t") ? "\t" : firstLine.includes(";") ? ";" : ",";
+
+  const headers = lines[0].split(sep).map((h) => h.trim().replace(/^["']|["']$/g, "").toLowerCase());
+  const rows: Record<string, string>[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    const vals = lines[i].split(sep).map((v) => v.trim().replace(/^["']|["']$/g, ""));
+    if (vals.length < 2) continue;
+    const row: Record<string, string> = {};
+    headers.forEach((h, j) => { row[h] = vals[j] || ""; });
+    rows.push(row);
+  }
+  return rows;
+}
+
+function mapCSVRow(row: Record<string, string>): ClienteImportRow | null {
+  const get = (...keys: string[]) => {
+    for (const k of keys) {
+      const v = row[k];
+      if (v) return v;
+    }
+    return "";
+  };
+  const nombre = get("nombre", "name", "razon_social", "razón social", "razon social");
+  const cuit_login = get("cuit_login", "cuit", "cuit login");
+  const clave_fiscal = get("clave_fiscal", "clave", "clave fiscal", "password", "contraseña");
+  const cuit_consulta = get("cuit_consulta", "cuit consulta", "cuit_de_consulta") || cuit_login;
+  const tipo = get("tipo_cliente", "tipo", "type");
+  const activo_str = get("activo", "active");
+
+  if (!nombre || !cuit_login || !clave_fiscal) return null;
+
+  return {
+    nombre,
+    cuit_login: cuit_login.replace(/\D/g, ""),
+    clave_fiscal,
+    cuit_consulta: cuit_consulta.replace(/\D/g, ""),
+    tipo_cliente: tipo === "empleador" ? "empleador" : "no_empleador",
+    activo: activo_str ? !["no", "false", "0", "inactivo"].includes(activo_str.toLowerCase()) : true,
+  };
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -230,6 +301,17 @@ export default function DashboardPage() {
   const [clientFormError, setClientFormError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loadingPassword, setLoadingPassword] = useState(false);
+
+  // ─── Inline editing ─────────────────────────────────────────────────────
+  const [editingRowId, setEditingRowId] = useState<number | null>(null);
+  const [editData, setEditData] = useState<Partial<ClienteCreate>>({});
+
+  // ─── CSV Import ────────────────────────────────────────────────────────
+  const [showImportPreview, setShowImportPreview] = useState(false);
+  const [importRows, setImportRows] = useState<ClienteImportRow[]>([]);
+  const [importResult, setImportResult] = useState<ClienteImportResult | null>(null);
+  const [importing, setImporting] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Download selection ───────────────────────────────────────────────────
   const [selectedDownloadRows, setSelectedDownloadRows] = useState<Set<number>>(new Set());
@@ -404,6 +486,85 @@ export default function DashboardPage() {
     await clientsApi.delete(id);
     setClientes(await clientsApi.list());
     setSelectedClientIds((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  }
+
+  // ─── Inline edit handlers ────────────────────────────────────────────────
+  function startInlineEdit(c: Cliente) {
+    setEditingRowId(c.id);
+    setEditData({
+      nombre: c.nombre,
+      cuit_login: c.cuit_login,
+      clave_fiscal: "",
+      cuit_consulta: c.cuit_consulta,
+      activo: c.activo,
+      tipo_cliente: c.tipo_cliente || "no_empleador",
+    });
+  }
+
+  function cancelInlineEdit() {
+    setEditingRowId(null);
+    setEditData({});
+  }
+
+  async function saveInlineEdit() {
+    if (!editingRowId) return;
+    if (!confirm("¿Guardar cambios?")) return;
+    try {
+      const data: Partial<ClienteCreate> = { ...editData };
+      if (!data.clave_fiscal) delete data.clave_fiscal;
+      await clientsApi.update(editingRowId, data);
+      setEditingRowId(null);
+      setEditData({});
+      setClientes(await clientsApi.list());
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al guardar");
+    }
+  }
+
+  // ─── CSV import handlers ──────────────────────────────────────────────────
+  function handleCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target?.result as string;
+      const parsed = parseCSV(text);
+      const mapped = parsed.map(mapCSVRow).filter(Boolean) as ClienteImportRow[];
+      setImportRows(mapped);
+      setImportResult(null);
+      setShowImportPreview(true);
+    };
+    reader.readAsText(file, "UTF-8");
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  }
+
+  async function handleImport() {
+    if (importRows.length === 0) return;
+    setImporting(true);
+    try {
+      const result = await clientsApi.import({ clientes: importRows });
+      setImportResult(result);
+      setClientes(await clientsApi.list());
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Error al importar");
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // ─── Consultation retry handlers ──────────────────────────────────────────
+  async function handleRetryConsulta(id: number) {
+    await consultations.retry(id);
+    setTimeout(poll, 500);
+  }
+
+  async function handleRetryFailed() {
+    const failedIds = consultaList.filter((c) => c.estado === "error").map((c) => c.id);
+    if (failedIds.length === 0) return;
+    if (!confirm(`¿Reintentar ${failedIds.length} consulta(s) fallida(s)?`)) return;
+    await consultations.retryBatch(failedIds);
+    setTimeout(poll, 500);
   }
 
   // ─── Consultation delete ──────────────────────────────────────────────────
@@ -592,12 +753,27 @@ export default function DashboardPage() {
                 Solo atrasados
               </label>
             </div>
-            <button
-              onClick={openNewClient}
-              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-            >
-              + Nuevo cliente
-            </button>
+            <div className="flex items-center gap-2">
+              <input
+                ref={csvInputRef}
+                type="file"
+                accept=".csv,.tsv,.txt"
+                onChange={handleCSVFile}
+                className="hidden"
+              />
+              <button
+                onClick={() => csvInputRef.current?.click()}
+                className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+              >
+                Importar CSV
+              </button>
+              <button
+                onClick={openNewClient}
+                className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
+              >
+                + Nuevo cliente
+              </button>
+            </div>
           </div>
 
           <TableToolbar
@@ -661,63 +837,95 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-gray-100">
                   {clientTable.rows.map((c) => {
                     const ddjjStatus = estadoDdjjBadge(c.estado_ddjj);
+                    const isEditing = editingRowId === c.id;
                     return (
                       <tr
                         key={c.id}
-                        className={`transition-colors ${selectedClientIds.has(c.id) ? "bg-blue-50/60" : "hover:bg-gray-50/60"}`}
+                        className={`transition-colors ${isEditing ? "bg-yellow-50/60" : selectedClientIds.has(c.id) ? "bg-blue-50/60" : "hover:bg-gray-50/60"}`}
                       >
                         <td className="px-3 py-2.5">
                           <input
                             type="checkbox"
                             checked={selectedClientIds.has(c.id)}
                             onChange={() => toggleClientSelection(c.id)}
+                            disabled={isEditing}
                             className="h-4 w-4 rounded border-gray-300 text-blue-600"
                           />
                         </td>
-                        <td className="px-3 py-2.5 text-sm font-medium text-gray-900">{c.nombre}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_login}</td>
-                        <td className="px-3 py-2.5 text-sm text-gray-700 tabular-nums">{c.cuit_consulta}</td>
                         <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            c.tipo_cliente === "empleador"
-                              ? "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20"
-                              : "bg-gray-100 text-gray-600 ring-1 ring-gray-300/20"
-                          }`}>
-                            {c.tipo_cliente === "empleador" ? "Empleador" : "No empleador"}
-                          </span>
+                          {isEditing ? (
+                            <input type="text" value={editData.nombre || ""} onChange={(e) => setEditData({ ...editData, nombre: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          ) : (
+                            <span className="text-sm font-medium text-gray-900">{c.nombre}</span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
-                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                            c.activo ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
-                          }`}>
-                            {c.activo ? "Sí" : "No"}
-                          </span>
+                          {isEditing ? (
+                            <input type="text" value={editData.cuit_login || ""} onChange={(e) => setEditData({ ...editData, cuit_login: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          ) : (
+                            <span className="text-sm text-gray-700 tabular-nums">{c.cuit_login}</span>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
-                          <div className="flex flex-col">
-                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ddjjStatus.css}`}>
-                              {ddjjStatus.label}
+                          {isEditing ? (
+                            <input type="text" value={editData.cuit_consulta || ""} onChange={(e) => setEditData({ ...editData, cuit_consulta: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 tabular-nums focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          ) : (
+                            <span className="text-sm text-gray-700 tabular-nums">{c.cuit_consulta}</span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {isEditing ? (
+                            <select value={editData.tipo_cliente || "no_empleador"} onChange={(e) => setEditData({ ...editData, tipo_cliente: e.target.value })} className="px-2 py-1 border border-gray-300 rounded text-xs text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500">
+                              <option value="no_empleador">No empleador</option>
+                              <option value="empleador">Empleador</option>
+                            </select>
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              c.tipo_cliente === "empleador"
+                                ? "bg-purple-50 text-purple-700 ring-1 ring-purple-600/20"
+                                : "bg-gray-100 text-gray-600 ring-1 ring-gray-300/20"
+                            }`}>
+                              {c.tipo_cliente === "empleador" ? "Empleador" : "No empleador"}
                             </span>
-                            {c.ultimo_periodo && (
-                              <span className="text-[10px] text-gray-400 mt-0.5">{c.ultimo_periodo}</span>
-                            )}
-                          </div>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {isEditing ? (
+                            <input type="checkbox" checked={editData.activo ?? true} onChange={(e) => setEditData({ ...editData, activo: e.target.checked })} className="h-4 w-4 rounded border-gray-300 text-blue-600" />
+                          ) : (
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                              c.activo ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-500"
+                            }`}>
+                              {c.activo ? "Sí" : "No"}
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-3 py-2.5">
+                          {isEditing ? (
+                            <input type="password" placeholder="(sin cambios)" value={editData.clave_fiscal || ""} onChange={(e) => setEditData({ ...editData, clave_fiscal: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500" />
+                          ) : (
+                            <div className="flex flex-col">
+                              <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${ddjjStatus.css}`}>
+                                {ddjjStatus.label}
+                              </span>
+                              {c.ultimo_periodo && (
+                                <span className="text-[10px] text-gray-400 mt-0.5">{c.ultimo_periodo}</span>
+                              )}
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5 text-right">
-                          <div className="flex items-center justify-end gap-2">
-                            <button
-                              onClick={() => openEditClient(c)}
-                              className="text-blue-600 hover:text-blue-800 text-xs font-medium"
-                            >
-                              Editar
-                            </button>
-                            <button
-                              onClick={() => deleteClient(c.id)}
-                              className="text-red-500 hover:text-red-700 text-xs font-medium"
-                            >
-                              Eliminar
-                            </button>
-                          </div>
+                          {isEditing ? (
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={saveInlineEdit} className="text-emerald-600 hover:text-emerald-800 text-xs font-medium">Guardar</button>
+                              <button onClick={cancelInlineEdit} className="text-gray-500 hover:text-gray-700 text-xs font-medium">Cancelar</button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center justify-end gap-2">
+                              <button onClick={() => startInlineEdit(c)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Editar</button>
+                              <button onClick={() => deleteClient(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
+                            </div>
+                          )}
                         </td>
                       </tr>
                     );
@@ -839,6 +1047,16 @@ export default function DashboardPage() {
             pageSize={consultaTable.pageSize}
             onPageChange={consultaTable.setPage}
             onPageSizeChange={consultaTable.setPageSize}
+            extra={
+              consultaList.some((c) => c.estado === "error") ? (
+                <button
+                  onClick={handleRetryFailed}
+                  className="px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition-colors"
+                >
+                  Reintentar fallidas ({consultaList.filter((c) => c.estado === "error").length})
+                </button>
+              ) : undefined
+            }
           />
 
           <div className="overflow-x-auto border border-gray-200 rounded-lg">
@@ -871,29 +1089,53 @@ export default function DashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
-                {consultaTable.rows.map((c) => (
-                  <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
-                    <td className="px-4 py-2.5 text-sm text-gray-500 whitespace-nowrap">
-                      {new Date(c.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-gray-900">{c.cliente_nombre}</td>
-                    <td className="px-4 py-2.5 text-sm text-gray-700">{c.periodo}m</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoConsultaBadge(c.estado)}`}>
-                        {c.estado}
-                      </span>
-                    </td>
-                    <td className="px-4 py-2.5 text-sm text-red-600 max-w-xs truncate">{c.error_detalle}</td>
-                    <td className="px-4 py-2.5 text-right">
-                      <button
-                        onClick={() => handleDeleteConsulta(c.id)}
-                        className="text-red-500 hover:text-red-700 text-xs font-medium"
-                      >
-                        Eliminar
-                      </button>
-                    </td>
-                  </tr>
-                ))}
+                {consultaTable.rows.map((c) => {
+                  const catBadge = c.estado === "error" ? errorCategoriaBadge(c.error_categoria) : null;
+                  return (
+                    <tr key={c.id} className="hover:bg-gray-50/60 transition-colors">
+                      <td className="px-4 py-2.5 text-sm text-gray-500 whitespace-nowrap">
+                        {new Date(c.created_at).toLocaleString("es-AR", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                      </td>
+                      <td className="px-4 py-2.5 text-sm text-gray-900">{c.cliente_nombre}</td>
+                      <td className="px-4 py-2.5 text-sm text-gray-700">{c.periodo}m</td>
+                      <td className="px-4 py-2.5">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${estadoConsultaBadge(c.estado)}`}>
+                          {c.estado}
+                        </span>
+                        {c.reintentos > 0 && (
+                          <span className="ml-1 text-[10px] text-gray-400">({c.reintentos}x)</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 max-w-xs">
+                        {catBadge ? (
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${catBadge.css}`} title={c.error_detalle || ""}>
+                            {catBadge.label}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-red-600 truncate block" title={c.error_detalle || ""}>{c.error_detalle}</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2.5 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {c.estado === "error" && (
+                            <button
+                              onClick={() => handleRetryConsulta(c.id)}
+                              className="text-amber-600 hover:text-amber-800 text-xs font-medium"
+                            >
+                              Reintentar
+                            </button>
+                          )}
+                          <button
+                            onClick={() => handleDeleteConsulta(c.id)}
+                            className="text-red-500 hover:text-red-700 text-xs font-medium"
+                          >
+                            Eliminar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
                 {consultaTable.rows.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-10 text-center text-sm text-gray-500">
@@ -1273,6 +1515,142 @@ export default function DashboardPage() {
             <p className="mt-3 text-xs text-gray-400">
               Las entradas por defecto aplican a todos los tenants. Las personalizadas son exclusivas de tu cuenta y tienen prioridad.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+         CSV IMPORT PREVIEW MODAL
+         ═══════════════════════════════════════════════════════════════════════ */}
+      {showImportPreview && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">
+                Importar Clientes desde CSV
+              </h3>
+              <button
+                onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); }}
+                className="text-gray-400 hover:text-gray-600"
+              >
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {importResult ? (
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  {importResult.created > 0 && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-emerald-50 text-emerald-700">
+                      {importResult.created} creado{importResult.created !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {importResult.updated > 0 && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-blue-50 text-blue-700">
+                      {importResult.updated} actualizado{importResult.updated !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {importResult.errors.length > 0 && (
+                    <span className="inline-flex items-center px-3 py-1.5 rounded-full text-sm font-medium bg-red-50 text-red-700">
+                      {importResult.errors.length} error{importResult.errors.length !== 1 ? "es" : ""}
+                    </span>
+                  )}
+                </div>
+                {importResult.errors.length > 0 && (
+                  <div className="overflow-auto max-h-48 border border-red-200 rounded-lg">
+                    <table className="min-w-full text-sm">
+                      <thead>
+                        <tr className="bg-red-50 border-b border-red-200">
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-red-700">Fila</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-red-700">Nombre</th>
+                          <th className="px-3 py-2 text-left text-xs font-semibold text-red-700">Error</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-red-100">
+                        {importResult.errors.map((err, i) => (
+                          <tr key={i}>
+                            <td className="px-3 py-2 text-gray-700">{err.row}</td>
+                            <td className="px-3 py-2 text-gray-700">{err.nombre}</td>
+                            <td className="px-3 py-2 text-red-600">{err.error}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <button
+                    onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); }}
+                    className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {importRows.length === 0 ? (
+                  <div className="py-10 text-center text-sm text-gray-500">
+                    No se encontraron datos válidos en el archivo CSV.
+                    <br />
+                    <span className="text-xs text-gray-400 mt-1 block">
+                      Columnas esperadas: nombre, cuit_login, clave_fiscal, cuit_consulta (opcional), tipo_cliente (opcional), activo (opcional)
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="overflow-auto flex-1 border border-gray-200 rounded-lg mb-4">
+                      <table className="min-w-full text-sm">
+                        <thead>
+                          <tr className="bg-gray-50 border-b border-gray-200">
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">#</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Nombre</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Login</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Clave</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Consulta</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Tipo</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-gray-100">
+                          {importRows.map((row, i) => (
+                            <tr key={i} className="hover:bg-gray-50/60">
+                              <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                              <td className="px-3 py-2 text-gray-900">{row.nombre}</td>
+                              <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_login}</td>
+                              <td className="px-3 py-2 text-gray-400">{"•".repeat(Math.min(row.clave_fiscal.length, 8))}</td>
+                              <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_consulta}</td>
+                              <td className="px-3 py-2 text-gray-600">{row.tipo_cliente}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-500">
+                        {importRows.length} cliente{importRows.length !== 1 ? "s" : ""} a importar
+                      </span>
+                      <div className="flex gap-3">
+                        <button
+                          onClick={() => { setShowImportPreview(false); setImportRows([]); }}
+                          className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          onClick={handleImport}
+                          disabled={importing}
+                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40"
+                        >
+                          {importing ? "Importando..." : `Importar ${importRows.length} cliente${importRows.length !== 1 ? "s" : ""}`}
+                        </button>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </>
+            )}
           </div>
         </div>
       )}

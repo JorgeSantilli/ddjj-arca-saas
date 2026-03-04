@@ -58,11 +58,73 @@ async def list_consultations(
             periodo=c.periodo,
             estado=c.estado,
             error_detalle=c.error_detalle,
+            error_categoria=c.error_categoria,
+            reintentos=c.reintentos or 0,
             archivo_csv=c.archivo_csv,
             created_at=c.created_at,
         )
         for c, nombre in rows
     ]
+
+
+@router.post("/{consulta_id}/retry", status_code=status.HTTP_202_ACCEPTED)
+async def retry_consultation(
+    consulta_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+):
+    """Reintentar una consulta fallida."""
+    from app.tasks.runner import enqueue_scraping
+
+    result = await db.execute(
+        select(Consulta).where(Consulta.id == consulta_id, Consulta.tenant_id == tenant_id)
+    )
+    consulta = result.scalar_one_or_none()
+    if not consulta:
+        raise HTTPException(status_code=404, detail="Consulta no encontrada")
+    if consulta.estado != "error":
+        raise HTTPException(status_code=400, detail="Solo se pueden reintentar consultas con error")
+
+    consulta.estado = "pendiente"
+    consulta.error_detalle = None
+    consulta.error_categoria = None
+    consulta.reintentos = 0
+    await db.commit()
+
+    await enqueue_scraping(consulta_id, tenant_id)
+    return {"message": "Consulta re-encolada", "consulta_id": consulta_id}
+
+
+@router.post("/retry-batch", status_code=status.HTTP_202_ACCEPTED)
+async def retry_batch(
+    ids: list[int],
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+):
+    """Reintentar múltiples consultas fallidas."""
+    from app.tasks.runner import enqueue_scraping
+
+    retried = []
+    for cid in ids:
+        result = await db.execute(
+            select(Consulta).where(Consulta.id == cid, Consulta.tenant_id == tenant_id)
+        )
+        consulta = result.scalar_one_or_none()
+        if consulta and consulta.estado == "error":
+            consulta.estado = "pendiente"
+            consulta.error_detalle = None
+            consulta.error_categoria = None
+            consulta.reintentos = 0
+            retried.append(cid)
+
+    await db.commit()
+
+    for cid in retried:
+        await enqueue_scraping(cid, tenant_id)
+
+    return {"message": f"{len(retried)} consultas re-encoladas", "consulta_ids": retried}
 
 
 @router.post("/execute", status_code=status.HTTP_202_ACCEPTED)
@@ -135,6 +197,8 @@ async def get_execution_status(
             periodo=c.periodo,
             estado=c.estado,
             error_detalle=c.error_detalle,
+            error_categoria=c.error_categoria,
+            reintentos=c.reintentos or 0,
             archivo_csv=c.archivo_csv,
             created_at=c.created_at,
         )

@@ -15,6 +15,8 @@ class ConsultaResponse(BaseModel):
     periodo: str
     estado: str
     error_detalle: str | None = None
+    error_categoria: str | None = None
+    reintentos: int = 0
     archivo_csv: str | None = None
     created_at: datetime
 
