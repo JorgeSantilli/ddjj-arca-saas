@@ -856,7 +856,14 @@ export default function DashboardPage() {
                           {isEditing ? (
                             <input type="text" value={editData.nombre || ""} onChange={(e) => setEditData({ ...editData, nombre: e.target.value })} className="w-full px-2 py-1 border border-gray-300 rounded text-sm text-gray-900 focus:outline-none focus:ring-1 focus:ring-blue-500" />
                           ) : (
-                            <span className="text-sm font-medium text-gray-900">{c.nombre}</span>
+                            <a
+                              href={`/api/v1/clients/${c.id}/autologin`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm font-medium text-blue-700 hover:text-blue-900 hover:underline cursor-pointer"
+                              title="Acceso rapido a ARCA"
+                              onClick={(e) => e.stopPropagation()}
+                            >{c.nombre}</a>
                           )}
                         </td>
                         <td className="px-3 py-2.5">

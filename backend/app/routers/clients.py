@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -200,6 +201,116 @@ async def get_client_password(
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
     return {"clave_fiscal": cliente.clave_fiscal}
+
+
+@router.get("/{client_id}/autologin", response_class=HTMLResponse)
+async def client_autologin(
+    client_id: int,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    tenant_id: Annotated[int, Depends(get_current_tenant_id)],
+    _user: Annotated[User, Depends(get_current_user)],
+):
+    """Pagina de acceso rapido a ARCA con credenciales del cliente."""
+    result = await db.execute(
+        select(Cliente).where(Cliente.id == client_id, Cliente.tenant_id == tenant_id)
+    )
+    cliente = result.scalar_one_or_none()
+    if not cliente:
+        raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    html = f"""<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acceso ARCA - {cliente.nombre}</title>
+<style>
+  * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+  body {{ font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f0f2f5; min-height: 100vh; display: flex; align-items: center; justify-content: center; }}
+  .card {{ background: #fff; border-radius: 12px; box-shadow: 0 4px 24px rgba(0,0,0,.1); padding: 32px; max-width: 420px; width: 100%; }}
+  .header {{ text-align: center; margin-bottom: 24px; }}
+  .header h1 {{ font-size: 18px; color: #1a1a2e; margin-bottom: 4px; }}
+  .header p {{ font-size: 13px; color: #666; }}
+  .field {{ margin-bottom: 16px; }}
+  .field label {{ display: block; font-size: 12px; font-weight: 600; color: #555; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 6px; }}
+  .field-row {{ display: flex; align-items: center; gap: 8px; }}
+  .field-value {{ flex: 1; background: #f8f9fa; border: 1px solid #e0e0e0; border-radius: 8px; padding: 10px 14px; font-size: 15px; font-family: 'SF Mono', 'Consolas', monospace; color: #1a1a2e; letter-spacing: 1px; }}
+  .btn-copy {{ background: #e8f4fd; border: 1px solid #b8daff; color: #0066cc; border-radius: 8px; padding: 10px 14px; cursor: pointer; font-size: 13px; font-weight: 600; transition: all .15s; white-space: nowrap; }}
+  .btn-copy:hover {{ background: #d0ebff; }}
+  .btn-copy.copied {{ background: #d4edda; border-color: #b1dfbb; color: #155724; }}
+  .divider {{ height: 1px; background: #e0e0e0; margin: 20px 0; }}
+  .steps {{ margin-bottom: 20px; }}
+  .steps li {{ font-size: 13px; color: #555; margin-bottom: 6px; padding-left: 4px; }}
+  .steps li strong {{ color: #1a1a2e; }}
+  .btn-arca {{ display: block; width: 100%; background: #0066cc; color: #fff; border: none; border-radius: 8px; padding: 14px; font-size: 15px; font-weight: 600; cursor: pointer; transition: background .15s; text-align: center; text-decoration: none; }}
+  .btn-arca:hover {{ background: #0052a3; }}
+  .badge {{ display: inline-block; background: #e8f4fd; color: #0066cc; font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 4px; margin-left: 8px; }}
+  .auto-msg {{ text-align: center; font-size: 12px; color: #28a745; margin-top: 12px; font-weight: 500; }}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="header">
+    <h1>{cliente.nombre}</h1>
+    <p>Acceso rapido a ARCA</p>
+  </div>
+
+  <div class="field">
+    <label>CUIT <span class="badge" id="auto-badge">Copiado automaticamente</span></label>
+    <div class="field-row">
+      <div class="field-value" id="cuit">{cliente.cuit_login}</div>
+      <button class="btn-copy" onclick="copiar('cuit', this)">Copiar</button>
+    </div>
+  </div>
+
+  <div class="field">
+    <label>Clave Fiscal</label>
+    <div class="field-row">
+      <div class="field-value" id="clave">{cliente.clave_fiscal}</div>
+      <button class="btn-copy" onclick="copiar('clave', this)">Copiar</button>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <ol class="steps">
+    <li><strong>CUIT ya copiado</strong> - pega en el campo de CUIT</li>
+    <li>Hace clic en <strong>Siguiente</strong></li>
+    <li>Volve aca, copia la <strong>Clave Fiscal</strong> y pegala</li>
+    <li>Hace clic en <strong>Ingresar</strong></li>
+  </ol>
+
+  <a class="btn-arca" href="https://auth.afip.gob.ar/contribuyente_/login.xhtml" target="_blank" rel="noopener">
+    Abrir ARCA
+  </a>
+
+  <div class="auto-msg" id="auto-msg"></div>
+</div>
+
+<script>
+  // Auto-copy CUIT on page load
+  const badge = document.getElementById('auto-badge');
+  badge.style.display = 'none';
+  navigator.clipboard.writeText('{cliente.cuit_login}').then(() => {{
+    badge.style.display = 'inline-block';
+    document.getElementById('auto-msg').textContent = 'CUIT copiado al portapapeles';
+    setTimeout(() => {{ document.getElementById('auto-msg').textContent = ''; }}, 3000);
+  }}).catch(() => {{
+    badge.style.display = 'none';
+  }});
+
+  function copiar(id, btn) {{
+    const text = document.getElementById(id).textContent;
+    navigator.clipboard.writeText(text).then(() => {{
+      btn.textContent = 'Copiado!';
+      btn.classList.add('copied');
+      setTimeout(() => {{ btn.textContent = 'Copiar'; btn.classList.remove('copied'); }}, 2000);
+    }});
+  }}
+</script>
+</body>
+</html>"""
+    return HTMLResponse(content=html)
 
 
 @router.put("/{client_id}", response_model=ClienteResponse)
