@@ -47,7 +47,30 @@ export default function ClientsPage() {
       const { clave_fiscal } = await clients.getPassword(c.id);
       
       // 2. Enviar mensaje a la extensión
-      const win = window as unknown as { chrome: { runtime: { sendMessage: Function, lastError?: any } } };
+      interface ChromeMessage {
+        type: string;
+        cuit: string;
+        clave: string;
+      }
+      
+      interface ChromeResponse {
+        success?: boolean;
+      }
+
+      interface ChromeRuntime {
+        sendMessage: (
+          extensionId: string,
+          message: ChromeMessage,
+          callback: (response: ChromeResponse) => void
+        ) => void;
+        lastError?: { message?: string };
+      }
+
+      const win = window as unknown as { 
+        chrome?: { 
+          runtime: ChromeRuntime 
+        } 
+      };
       
       if (typeof window !== "undefined" && win.chrome?.runtime?.sendMessage) {
         win.chrome.runtime.sendMessage(
@@ -57,8 +80,8 @@ export default function ClientsPage() {
             cuit: c.cuit_login,
             clave: clave_fiscal
           },
-          (response: { success?: boolean }) => {
-            if (win.chrome.runtime.lastError) {
+          (response) => {
+            if (win.chrome?.runtime?.lastError) {
               alert("Error: La extensión no parece estar instalada o habilitada.");
               console.error(win.chrome.runtime.lastError);
               return;
