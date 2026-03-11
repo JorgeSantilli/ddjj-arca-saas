@@ -430,21 +430,6 @@ export default function DashboardPage() {
     setShowClientForm(true);
   }
 
-  function openEditClient(c: Cliente) {
-    setEditingClientId(c.id);
-    setClientForm({
-      nombre: c.nombre,
-      cuit_login: c.cuit_login,
-      clave_fiscal: "",
-      cuit_consulta: c.cuit_consulta,
-      activo: c.activo,
-      tipo_cliente: c.tipo_cliente || "no_empleador",
-    });
-    setClientFormError("");
-    setShowPassword(false);
-    setShowClientForm(true);
-  }
-
   async function handleShowPassword() {
     if (!editingClientId) return;
     if (showPassword) {
