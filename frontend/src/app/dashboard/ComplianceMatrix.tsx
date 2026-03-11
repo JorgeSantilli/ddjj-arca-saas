@@ -3,7 +3,17 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { reports, type ComplianceMatrixResponse } from "@/lib/api";
 
-// ... (SearchIcon and FilterIcon remain same) ...
+const SearchIcon = () => (
+  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+  </svg>
+);
+
+const FilterIcon = () => (
+  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18m-18 7.5h12m-12 7.5h6" />
+  </svg>
+);
 
 export default function ComplianceMatrix() {
   const [data, setData] = useState<ComplianceMatrixResponse | null>(null);
