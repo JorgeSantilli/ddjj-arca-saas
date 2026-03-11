@@ -179,7 +179,7 @@ export default function DownloadsPage() {
           <button
             key={tab.id}
             onClick={() => {
-              setActiveTab(tab.id as any);
+              setActiveTab(tab.id as "todos" | "aceptados" | "rechazados" | "pendientes");
               setSelectedRows(new Set());
             }}
             className={`py-2 px-4 text-sm font-medium border-b-2 transition-colors ${
