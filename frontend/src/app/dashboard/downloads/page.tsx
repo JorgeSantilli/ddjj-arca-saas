@@ -14,6 +14,7 @@ export default function DownloadsPage() {
   const [sortField, setSortField] = useState<SortField>("fecha_presentacion");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [selectedRows, setSelectedRows] = useState<Set<number>>(new Set());
+  const [activeTab, setActiveTab] = useState<"todos" | "aceptados" | "rechazados" | "pendientes">("todos");
 
   useEffect(() => {
     downloads
@@ -34,7 +35,7 @@ export default function DownloadsPage() {
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    const rows = records.filter(
+    let rows = records.filter(
       (r) =>
         r.cliente_nombre.toLowerCase().includes(q) ||
         r.cuit_cuil.toLowerCase().includes(q) ||
@@ -46,6 +47,15 @@ export default function DownloadsPage() {
         r.fecha_presentacion.toLowerCase().includes(q)
     );
 
+    // Filtrar por pestaña
+    if (activeTab === "aceptados") {
+      rows = rows.filter(r => r.estado.toLowerCase().includes("aceptada") || r.estado.toLowerCase().includes("presentada"));
+    } else if (activeTab === "rechazados") {
+      rows = rows.filter(r => r.estado.toLowerCase().includes("rechaz") || r.estado.toLowerCase().includes("error"));
+    } else if (activeTab === "pendientes") {
+      rows = rows.filter(r => r.estado.toLowerCase().includes("pendi"));
+    }
+
     rows.sort((a, b) => {
       const va = a[sortField] || "";
       const vb = b[sortField] || "";
@@ -54,7 +64,7 @@ export default function DownloadsPage() {
     });
 
     return rows;
-  }, [records, search, sortField, sortDir]);
+  }, [records, search, sortField, sortDir, activeTab]);
 
   function toggleRow(idx: number) {
     setSelectedRows((prev) => {
@@ -156,6 +166,36 @@ export default function DownloadsPage() {
             Exportar CSV
           </button>
         </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex border-b border-gray-200 mb-6">
+        {[
+          { id: "todos", label: "Todas", count: records.length },
+          { id: "aceptados", label: "Aceptadas", count: records.filter(r => r.estado.toLowerCase().includes("aceptada") || r.estado.toLowerCase().includes("presentada")).length },
+          { id: "rechazados", label: "Rechazadas", count: records.filter(r => r.estado.toLowerCase().includes("rechaz") || r.estado.toLowerCase().includes("error")).length },
+          { id: "pendientes", label: "Pendientes", count: records.filter(r => r.estado.toLowerCase().includes("pendi")).length },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setActiveTab(tab.id as any);
+              setSelectedRows(new Set());
+            }}
+            className={`py-2 px-4 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? "border-blue-600 text-blue-600"
+                : "border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300"
+            }`}
+          >
+            {tab.label}
+            <span className={`ml-2 px-1.5 py-0.5 rounded-full text-xs ${
+              activeTab === tab.id ? "bg-blue-100 text-blue-600" : "bg-gray-100 text-gray-500"
+            }`}>
+              {tab.count}
+            </span>
+          </button>
+        ))}
       </div>
 
       {/* Search */}

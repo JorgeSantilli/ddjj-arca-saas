@@ -270,6 +270,8 @@ function mapCSVRow(row: Record<string, string>): ClienteImportRow | null {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
+const EXTENSION_ID = "nbfnfekncehjlecnhhpkimddjdjkogol";
+
 export default function DashboardPage() {
   // ─── Shared state ─────────────────────────────────────────────────────────
   const [clientes, setClientes] = useState<Cliente[]>([]);
@@ -277,6 +279,32 @@ export default function DashboardPage() {
   const [records, setRecords] = useState<DownloadRecord[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(true);
+
+  async function handleAutoLogin(c: Cliente) {
+    try {
+      const { clave_fiscal } = await clientsApi.getPassword(c.id);
+      interface ChromeMessage { type: string; cuit: string; clave: string; }
+      interface ChromeResponse { success?: boolean; }
+      interface ChromeRuntime {
+        sendMessage: (id: string, msg: ChromeMessage, cb: (r: ChromeResponse) => void) => void;
+        lastError?: { message?: string };
+      }
+      const win = window as unknown as { chrome?: { runtime: ChromeRuntime } };
+      if (typeof window !== "undefined" && win.chrome?.runtime?.sendMessage) {
+        win.chrome.runtime.sendMessage(EXTENSION_ID, { type: "LOGIN_REQUEST", cuit: c.cuit_login, clave: clave_fiscal }, (response) => {
+          if (win.chrome?.runtime?.lastError) {
+            alert("Error: La extensión no parece estar instalada o habilitada.");
+            return;
+          }
+          if (response?.success) console.log("Login iniciado vía extensión");
+        });
+      } else {
+        alert("Chrome extension runtime no disponible. Usa Chrome.");
+      }
+    } catch {
+      alert("Error al obtener credenciales para autologin");
+    }
+  }
 
   // ─── Client selection ─────────────────────────────────────────────────────
   const [selectedClientIds, setSelectedClientIds] = useState<Set<number>>(new Set());
@@ -688,6 +716,44 @@ export default function DashboardPage() {
   // ═════════════════════════════════════════════════════════════════════════════
   return (
     <div className="space-y-6">
+      {/* Extension Installation Banner */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-5 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="bg-blue-600 p-2 rounded-lg text-white shrink-0">
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+              <h3 className="text-base font-bold text-blue-900">Instrucciones para la Conexión con ARCA</h3>
+              <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">ID: nbfnfekncehjlecnhhpkimddjdjkogol</span>
+            </div>
+            <p className="text-blue-800 text-sm mb-3">
+              Para habilitar el <strong>Autologin</strong>, debes instalar la extensión de Chrome incluida en el proyecto:
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white/50 p-2.5 rounded border border-blue-100">
+                <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 1</span>
+                <p className="text-xs text-blue-900 leading-tight">Abre <strong>chrome://extensions</strong> en tu navegador.</p>
+              </div>
+              <div className="bg-white/50 p-2.5 rounded border border-blue-100">
+                <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 2</span>
+                <p className="text-xs text-blue-900 leading-tight">Activa el <strong>Modo desarrollador</strong> (arriba a la derecha).</p>
+              </div>
+              <div className="bg-white/50 p-2.5 rounded border border-blue-100">
+                <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 3</span>
+                <p className="text-xs text-blue-900 leading-tight">Click en <strong>Cargar descomprimida</strong>.</p>
+              </div>
+              <div className="bg-white/50 p-2.5 rounded border border-blue-100">
+                <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 4</span>
+                <p className="text-xs text-blue-900 leading-tight">Selecciona la carpeta <strong>/extension</strong> de este proyecto.</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
@@ -915,6 +981,13 @@ export default function DashboardPage() {
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-2">
+                              <button
+                                onClick={() => handleAutoLogin(c)}
+                                className="text-emerald-600 hover:text-emerald-800 text-xs font-bold mr-1"
+                                title="Entrar a ARCA"
+                              >
+                                Entrar ARCA
+                              </button>
                               <button onClick={() => startInlineEdit(c)} className="text-blue-600 hover:text-blue-800 text-xs font-medium">Editar</button>
                               <button onClick={() => deleteClient(c.id)} className="text-red-500 hover:text-red-700 text-xs font-medium">Eliminar</button>
                             </div>
