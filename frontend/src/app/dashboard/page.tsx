@@ -729,9 +729,24 @@ export default function DashboardPage() {
               <h3 className="text-base font-bold text-blue-900">Instrucciones para la Conexión con ARCA</h3>
               <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">ID: nbfnfekncehjlecnhhpkimddjdjkogol</span>
             </div>
-            <p className="text-blue-800 text-sm mb-3">
+            <p className="text-blue-800 text-sm mb-4">
               Para habilitar el <strong>Autologin</strong>, debes instalar la extensión de Chrome incluida en el proyecto:
             </p>
+            <div className="flex flex-wrap gap-4 mb-6">
+              <a 
+                href="https://github.com/JorgeSantilli/ddjj-arca-saas/archive/refs/heads/master.zip"
+                className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-all shadow-md"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                Descargar Extensión (.zip)
+              </a>
+              <div className="flex items-center gap-2 text-[10px] font-semibold text-blue-600 bg-white/50 px-3 py-1.5 rounded-full border border-blue-100">
+                <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
+                ID: nbfnfekncehjlecnhhpkimddjdjkogol
+              </div>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               <div className="bg-white/50 p-2.5 rounded border border-blue-100">
                 <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 1</span>
