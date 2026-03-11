@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "Arca Access",
+  "version": "1.0",
+  "description": "Autologin seguro en ARCA desde DJControl.",
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "scripting",
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "https://auth.afip.gob.ar/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://auth.afip.gob.ar/contribuyente_/login.xhtml*"],
+      "js": ["content_arca.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "http://localhost:3000/*",
+      "https://frontend-production-ca6d.up.railway.app/*"
+    ]
+  }
+}
