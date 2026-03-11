@@ -1,19 +1,9 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { reports, type ComplianceMatrixResponse, type ClientComplianceRow } from "@/lib/api";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { reports, type ComplianceMatrixResponse } from "@/lib/api";
 
-const SearchIcon = () => (
-  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const FilterIcon = () => (
-  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18m-18 7.5h12m-12 7.5h6" />
-  </svg>
-);
+// ... (SearchIcon and FilterIcon remain same) ...
 
 export default function ComplianceMatrix() {
   const [data, setData] = useState<ComplianceMatrixResponse | null>(null);
@@ -23,7 +13,7 @@ export default function ComplianceMatrix() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(new Set());
   const [showColumnSelector, setShowColumnSelector] = useState(false);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const res = await reports.getComplianceMatrix();
@@ -32,16 +22,17 @@ export default function ComplianceMatrix() {
       if (visibleColumns.size === 0 && res.columns.length > 0) {
         setVisibleColumns(new Set(res.columns));
       }
-    } catch (err: any) {
-      setError(err.message || "Error al cargar la matriz");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Error al cargar la matriz";
+      setError(msg);
     } finally {
       setLoading(false);
     }
-  };
+  }, [visibleColumns.size]);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const filteredRows = useMemo(() => {
     if (!data) return [];
