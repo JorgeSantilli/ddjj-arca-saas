@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { clients } from "@/lib/api";
 import type { Cliente, ClienteCreate } from "@/lib/api";
 
+const EXTENSION_ID = "nbfnfekncehjlecnhhpkimddjdjkogol";
+
 export default function ClientsPage() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -37,6 +39,39 @@ export default function ClientsPage() {
     setEditingId(c.id);
     setShowForm(true);
     setError("");
+  }
+
+  async function handleAutoLogin(c: Cliente) {
+    try {
+      // 1. Obtener la clave fiscal del backend
+      const { clave_fiscal } = await clients.getPassword(c.id);
+      
+      // 2. Enviar mensaje a la extensión
+      if (typeof window !== "undefined" && (window as any).chrome?.runtime?.sendMessage) {
+        (window as any).chrome.runtime.sendMessage(
+          EXTENSION_ID,
+          {
+            type: "LOGIN_REQUEST",
+            cuit: c.cuit_login,
+            clave: clave_fiscal
+          },
+          (response: any) => {
+            if ((window as any).chrome.runtime.lastError) {
+              alert("Error: La extensión no parece estar instalada o habilitada.");
+              console.error((window as any).chrome.runtime.lastError);
+              return;
+            }
+            if (response?.success) {
+              console.log("Login iniciado vía extensión");
+            }
+          }
+        );
+      } else {
+        alert("Chrome extension runtime no disponible. Usa Chrome.");
+      }
+    } catch (err) {
+      alert("Error al obtener credenciales para autologin");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -158,6 +193,7 @@ export default function ClientsPage() {
                   </span>
                 </td>
                 <td className="px-6 py-4 text-right space-x-2">
+                  <button onClick={() => handleAutoLogin(c)} className="text-green-600 hover:text-green-800 text-sm font-semibold mr-2">Entrar ARCA</button>
                   <button onClick={() => openEdit(c)} className="text-blue-600 hover:text-blue-800 text-sm">Editar</button>
                   <button onClick={() => handleDelete(c.id)} className="text-red-600 hover:text-red-800 text-sm">Eliminar</button>
                 </td>
