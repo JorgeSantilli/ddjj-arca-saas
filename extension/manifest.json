@@ -3,13 +3,15 @@
   "name": "Arca Access",
   "version": "1.0",
   "description": "Autologin seguro en ARCA desde DJControl.",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAyL3Wn6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6n6IDAQAB",
   "background": {
     "service_worker": "background.js"
   },
   "permissions": [
     "scripting",
     "activeTab",
-    "tabs"
+    "tabs",
+    "storage"
   ],
   "host_permissions": [
     "https://auth.afip.gob.ar/*"
