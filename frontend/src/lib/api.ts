@@ -96,6 +96,11 @@ export const formDictionary = {
   delete: (id: number) => fetchApi(`/form-dictionary/${id}`, { method: "DELETE" }),
 };
 
+// Reports
+export const reports = {
+  getComplianceMatrix: () => fetchApi<ComplianceMatrixResponse>("/reports/compliance-matrix"),
+};
+
 // Admin
 export const admin = {
   tenants: () => fetchApi<Tenant[]>("/admin/tenants"),
@@ -106,6 +111,22 @@ export const admin = {
 };
 
 // Types
+export interface ComplianceStatus {
+  periodo: string | null;
+  estado: string; // al_dia, atrasado_1, atrasado_critico, sin_datos
+}
+
+export interface ClientComplianceRow {
+  cliente_id: number;
+  cliente_nombre: string;
+  data: Record<string, ComplianceStatus>;
+}
+
+export interface ComplianceMatrixResponse {
+  columns: string[];
+  rows: ClientComplianceRow[];
+}
+
 export interface User {
   id: number;
   email: string;

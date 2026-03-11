@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.routers import admin, auth, clients, consultations, downloads, form_dictionary
+from app.routers import admin, auth, clients, consultations, downloads, form_dictionary, reports
 
 # Configure logging for scraper/task visibility
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(name)s] %(levelname)s: %(message)s")
@@ -59,6 +59,7 @@ app.include_router(clients.router)
 app.include_router(consultations.router)
 app.include_router(downloads.router)
 app.include_router(form_dictionary.router)
+app.include_router(reports.router)
 app.include_router(admin.router)
 
 

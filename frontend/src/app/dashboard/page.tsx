@@ -18,6 +18,7 @@ import type {
   FormDictEntry,
 } from "@/lib/api";
 import { useTable } from "@/hooks/useTable";
+import ComplianceMatrix from "./ComplianceMatrix";
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
 const SearchIcon = () => (
@@ -1157,7 +1158,16 @@ export default function DashboardPage() {
       </Section>
 
       {/* ═══════════════════════════════════════════════════════════════════════
-         3. LISTADO DE DESCARGAS / DECLARACIONES JURADAS
+         3. PLANILLA DE CUMPLIMIENTO (Matriz en tiempo real)
+         ═══════════════════════════════════════════════════════════════════════ */}
+      <Section title="Planilla de Cumplimiento" icon="📊" collapsible defaultOpen={true}>
+        <div className="px-5 py-6">
+          <ComplianceMatrix />
+        </div>
+      </Section>
+
+      {/* ═══════════════════════════════════════════════════════════════════════
+         4. LISTADO DE DESCARGAS / DECLARACIONES JURADAS
          ═══════════════════════════════════════════════════════════════════════ */}
       <Section title="Declaraciones Juradas" icon="📥">
         <div className="px-5 py-4">
