@@ -136,6 +136,23 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - Superadmin user: jorgesantilli1@gmail.com (is_superadmin=true, promoted via direct DB UPDATE)
 - To promote a user: `UPDATE users SET is_superadmin = true WHERE email = '...'` via Postgres public URL
 
+## Chrome Extension "Arca Access"
+- Source in `extension/` folder (manifest.json, background.js, content_arca.js)
+- **Extension ID**: `pahlenbheihbjmakbfagmcglhifiepic` (derivado de clave RSA real en manifest.json)
+- **CRÍTICO**: El ID está hardcodeado en `frontend/src/app/dashboard/page.tsx` como `EXTENSION_ID`
+- Si se regenera la clave RSA, hay que actualizar el ID en page.tsx también
+- Cómo instalar: chrome://extensions → Modo desarrollador → Cargar descomprimida → seleccionar carpeta `/extension`
+- `externally_connectable` en manifest.json debe incluir la URL del frontend en producción
+- El autologin funciona en 2 pasos (page reload entre CUIT y clave) usando `chrome.storage.local`
+
+## Compliance Matrix
+- Endpoint: `GET /api/v1/reports/compliance-matrix`
+- Componente: `frontend/src/app/dashboard/ComplianceMatrix.tsx`
+- Se refresca automáticamente al terminar una tanda de scraping (via `matrixKey` state en page.tsx)
+- Columnas = tipos de DDJJ (agrupados por descripción del formulario del diccionario)
+- Celdas = último período presentado + semáforo (al_dia/atrasado_1/atrasado_critico/sin_datos)
+- Solo muestra clientes activos
+
 ## CSS / Tailwind Notes
 - Tailwind v4 dark mode can make input text invisible on white backgrounds
 - `globals.css` has `input, select, textarea { color: #171717 }`
