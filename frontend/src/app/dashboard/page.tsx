@@ -735,8 +735,9 @@ export default function DashboardPage() {
               Para habilitar el <strong>Autologin</strong>, debes instalar la extensión de Chrome incluida en el proyecto:
             </p>
             <div className="flex flex-wrap gap-4 mb-6">
-              <a 
-                href="https://github.com/JorgeSantilli/ddjj-arca-saas/archive/refs/heads/master.zip"
+              <a
+                href="/arca-access-extension.zip"
+                download="arca-access-extension.zip"
                 className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-all shadow-md"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -764,7 +765,7 @@ export default function DashboardPage() {
               </div>
               <div className="bg-white/50 p-2.5 rounded border border-blue-100">
                 <span className="block text-[10px] font-bold text-blue-400 uppercase tracking-wider mb-0.5">Paso 4</span>
-                <p className="text-xs text-blue-900 leading-tight">Selecciona la carpeta <strong>/extension</strong> de este proyecto.</p>
+                <p className="text-xs text-blue-900 leading-tight">Extraé el ZIP y seleccioná la carpeta <strong>arca-access-extension</strong>.</p>
               </div>
             </div>
           </div>
