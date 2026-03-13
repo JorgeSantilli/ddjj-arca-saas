@@ -28,17 +28,17 @@ export default function ComplianceMatrix() {
       setLoading(true);
       const res = await reports.getComplianceMatrix();
       setData(res);
-      // Por defecto mostrar todas las columnas al cargar por primera vez
-      if (visibleColumns.size === 0 && res.columns.length > 0) {
-        setVisibleColumns(new Set(res.columns));
-      }
+      setVisibleColumns((prev) => {
+        if (prev.size === 0 && res.columns.length > 0) return new Set(res.columns);
+        return prev;
+      });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Error al cargar la matriz";
       setError(msg);
     } finally {
       setLoading(false);
     }
-  }, [visibleColumns.size]);
+  }, []);
 
   useEffect(() => {
     fetchData();

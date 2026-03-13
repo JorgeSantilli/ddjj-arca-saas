@@ -270,7 +270,7 @@ function mapCSVRow(row: Record<string, string>): ClienteImportRow | null {
 // ═══════════════════════════════════════════════════════════════════════════════
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
-const EXTENSION_ID = "nbfnfekncehjlecnhhpkimddjdjkogol";
+const EXTENSION_ID = "pahlenbheihbjmakbfagmcglhifiepic";
 
 export default function DashboardPage() {
   // ─── Shared state ─────────────────────────────────────────────────────────
@@ -279,6 +279,7 @@ export default function DashboardPage() {
   const [records, setRecords] = useState<DownloadRecord[]>([]);
   const [loadingClientes, setLoadingClientes] = useState(true);
   const [loadingRecords, setLoadingRecords] = useState(true);
+  const [matrixKey, setMatrixKey] = useState(0);
 
   async function handleAutoLogin(c: Cliente) {
     try {
@@ -389,12 +390,13 @@ export default function DashboardPage() {
     return () => clearInterval(interval);
   }, [showLogs, pollLogs]);
 
-  // Refresh downloads when execution finishes
+  // Refresh downloads and compliance matrix when execution finishes
   const prevRunning = useRef(false);
   useEffect(() => {
     if (prevRunning.current && !status?.corriendo) {
       downloads.list().then(setRecords).catch(console.error);
       clientsApi.list().then(setClientes).catch(console.error);
+      setMatrixKey((k) => k + 1);
     }
     prevRunning.current = status?.corriendo ?? false;
   }, [status?.corriendo]);
@@ -727,7 +729,7 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
               <h3 className="text-base font-bold text-blue-900">Instrucciones para la Conexión con ARCA</h3>
-              <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">ID: nbfnfekncehjlecnhhpkimddjdjkogol</span>
+              <span className="text-[10px] font-mono bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200">ID: pahlenbheihbjmakbfagmcglhifiepic</span>
             </div>
             <p className="text-blue-800 text-sm mb-4">
               Para habilitar el <strong>Autologin</strong>, debes instalar la extensión de Chrome incluida en el proyecto:
@@ -744,7 +746,7 @@ export default function DashboardPage() {
               </a>
               <div className="flex items-center gap-2 text-[10px] font-semibold text-blue-600 bg-white/50 px-3 py-1.5 rounded-full border border-blue-100">
                 <span className="w-2 h-2 bg-blue-600 rounded-full animate-pulse"></span>
-                ID: nbfnfekncehjlecnhhpkimddjdjkogol
+                ID: pahlenbheihbjmakbfagmcglhifiepic
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1235,7 +1237,7 @@ export default function DashboardPage() {
          ═══════════════════════════════════════════════════════════════════════ */}
       <Section title="Planilla de Cumplimiento" icon="📊" collapsible defaultOpen={true}>
         <div className="px-5 py-6">
-          <ComplianceMatrix />
+          <ComplianceMatrix key={matrixKey} />
         </div>
       </Section>
 

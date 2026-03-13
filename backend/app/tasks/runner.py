@@ -119,23 +119,28 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
                 consulta.error_categoria = None
                 logger.info(f"Consulta {consulta_id} exitosa: {resultado.get('archivo')}")
 
-                # Save table data extracted from ARCA screen
+                # Save table data extracted from ARCA screen (skip if already saved for this consulta)
                 tabla_datos = resultado.get("tabla_datos", [])
                 if tabla_datos:
-                    for row in tabla_datos:
-                        descarga = Descarga(
-                            tenant_id=tenant_id,
-                            consulta_id=consulta_id,
-                            cliente_id=consulta.cliente_id,
-                            estado=row.get("estado", ""),
-                            cuit_cuil=row.get("cuit_cuil", ""),
-                            formulario=row.get("formulario", ""),
-                            periodo=row.get("periodo", ""),
-                            transaccion=row.get("transaccion", ""),
-                            fecha_presentacion=row.get("fecha_presentacion", ""),
-                        )
-                        db.add(descarga)
-                    logger.info(f"Guardados {len(tabla_datos)} registros de tabla ARCA en DB")
+                    from sqlalchemy import select as sa_select
+                    existing = db.scalar(sa_select(Descarga).where(Descarga.consulta_id == consulta_id))
+                    if existing:
+                        logger.info(f"Consulta {consulta_id} ya tiene registros en descargas, omitiendo inserción")
+                    else:
+                        for row in tabla_datos:
+                            descarga = Descarga(
+                                tenant_id=tenant_id,
+                                consulta_id=consulta_id,
+                                cliente_id=consulta.cliente_id,
+                                estado=row.get("estado", ""),
+                                cuit_cuil=row.get("cuit_cuil", ""),
+                                formulario=row.get("formulario", ""),
+                                periodo=row.get("periodo", ""),
+                                transaccion=row.get("transaccion", ""),
+                                fecha_presentacion=row.get("fecha_presentacion", ""),
+                            )
+                            db.add(descarga)
+                        logger.info(f"Guardados {len(tabla_datos)} registros de tabla ARCA en DB")
             else:
                 from app.services.scraper import clasificar_error, TRANSIENT_CATEGORIES
 
