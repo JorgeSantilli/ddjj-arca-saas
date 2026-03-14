@@ -28,3 +28,7 @@ resend>=2.22.0
 python-dotenv>=1.0.0
 pydantic[email]>=2.0.0
 pydantic-settings>=2.0.0
+
+# Security
+cryptography>=42.0.0
+slowapi>=0.1.9

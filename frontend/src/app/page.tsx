@@ -82,6 +82,20 @@ function BoltIcon() {
     </svg>
   );
 }
+function PuzzleIcon() {
+  return (
+    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 6.087c0-.355.186-.676.401-.959.221-.29.349-.634.349-1.003 0-1.036-1.007-1.875-2.25-1.875s-2.25.84-2.25 1.875c0 .369.128.713.349 1.003.215.283.401.604.401.959v0a.64.64 0 0 1-.657.643 48.39 48.39 0 0 1-4.163-.3c.186 1.613.293 3.25.315 4.907a.656.656 0 0 1-.658.663v0c-.355 0-.676-.186-.959-.401a1.647 1.647 0 0 0-1.003-.349c-1.036 0-1.875 1.007-1.875 2.25s.84 2.25 1.875 2.25c.369 0 .713-.128 1.003-.349.283-.215.604-.401.959-.401v0c.31 0 .555.26.532.57a48.039 48.039 0 0 1-.642 5.056c1.518.19 3.058.309 4.616.354a.64.64 0 0 0 .657-.643v0c0-.355-.186-.676-.401-.959a1.647 1.647 0 0 1-.349-1.003c0-1.035 1.008-1.875 2.25-1.875 1.243 0 2.25.84 2.25 1.875 0 .369-.128.713-.349 1.003-.215.283-.4.604-.4.959v0c0 .333.277.599.61.58a48.1 48.1 0 0 0 5.427-.63 48.05 48.05 0 0 0 .582-4.717.532.532 0 0 0-.533-.57v0c-.355 0-.676.186-.959.401-.29.221-.634.349-1.003.349-1.035 0-1.875-1.007-1.875-2.25s.84-2.25 1.875-2.25c.37 0 .713.128 1.003.349.283.215.604.401.959.401v0a.656.656 0 0 0 .658-.663 48.422 48.422 0 0 0-.37-5.36c-1.886.342-3.81.574-5.766.689a.578.578 0 0 1-.61-.58v0Z" />
+    </svg>
+  );
+}
+function TableCellsIcon() {
+  return (
+    <svg className="w-8 h-8" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3.375 19.5h17.25m-17.25 0a1.125 1.125 0 0 1-1.125-1.125M3.375 19.5h7.5c.621 0 1.125-.504 1.125-1.125m-9.75 0V5.625m0 12.75v-1.5c0-.621.504-1.125 1.125-1.125m18.375 2.625V5.625m0 12.75c0 .621-.504 1.125-1.125 1.125m1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125m0 3.75h-7.5A1.125 1.125 0 0 1 12 18.375m9.75-12.75c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125m19.5 0v1.5c0 .621-.504 1.125-1.125 1.125M2.25 5.625v1.5c0 .621.504 1.125 1.125 1.125m0 0h17.25m-17.25 0h7.5c.621 0 1.125.504 1.125 1.125M3.375 8.25c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125m17.25-3.75h-7.5c-.621 0-1.125.504-1.125 1.125m8.625-1.125c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125M12 10.875v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 10.875c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125M13.125 12h7.5m-7.5 0c-.621 0-1.125.504-1.125 1.125M20.625 12c.621 0 1.125.504 1.125 1.125v1.5c0 .621-.504 1.125-1.125 1.125m-17.25 0h7.5M12 14.625v-1.5m0 1.5c0 .621-.504 1.125-1.125 1.125M12 14.625c0 .621.504 1.125 1.125 1.125m-2.25 0c.621 0 1.125.504 1.125 1.125m0 1.5v-1.5m0 0c0-.621.504-1.125 1.125-1.125m-1.125 0h7.5" />
+    </svg>
+  );
+}
 function CheckCircleIcon({ className = "w-5 h-5" }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
@@ -94,6 +108,37 @@ function ArrowRightIcon() {
     <svg className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5 21 12m0 0-7.5 7.5M21 12H3" />
     </svg>
+  );
+}
+
+/* ───────── DISCLAIMER SECTION ───────── */
+function DisclaimerSection() {
+  const [open, setOpen] = useState(false);
+  return (
+    <section className="py-8 border-t border-gray-100">
+      <div className="max-w-6xl mx-auto px-6">
+        <button
+          onClick={() => setOpen(!open)}
+          className="flex items-center gap-2 text-sm text-gray-400 hover:text-gray-600 transition-colors"
+        >
+          <svg className={`w-4 h-4 transition-transform ${open ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+          Aviso legal y deslinde de responsabilidades
+        </button>
+        {open && (
+          <div className="mt-4 text-sm text-gray-500 leading-relaxed space-y-2 max-w-3xl bg-gray-50 rounded-xl border border-gray-200 p-6">
+            <p className="font-medium text-gray-700">DJControl es una herramienta de automatización independiente, no afiliada ni oficial de ARCA (ex-AFIP).</p>
+            <ul className="space-y-1.5 list-disc list-inside text-gray-500">
+              <li>La automatización depende de la disponibilidad del sitio web de ARCA. DJControl no garantiza continuidad ante cambios en la plataforma oficial.</li>
+              <li>El usuario es el único responsable de la veracidad y seguridad de las credenciales (CUIT y claves fiscales) ingresadas.</li>
+              <li>Los resultados deben ser verificados por el profesional contable responsable antes de tomar decisiones.</li>
+              <li>DJControl no asume responsabilidad por multas, incumplimientos ni errores derivados del uso de la plataforma, ya sea por fallas técnicas, cambios en ARCA o datos incorrectos ingresados por el usuario.</li>
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -180,7 +225,7 @@ export default function LandingPage() {
             <Reveal delay={0.2}>
               <p className="mt-6 text-lg md:text-xl text-gray-500 leading-relaxed max-w-2xl">
                 Automatizá la consulta de Declaraciones Juradas de todos tus clientes.
-                Un click, todos los CUIT, resultados al instante.
+                Importá desde Excel o Google Sheets, usá el autologin con extensión Chrome y visualizá el estado de cumplimiento de cada cliente al instante.
               </p>
             </Reveal>
 
@@ -252,16 +297,18 @@ export default function LandingPage() {
             </h2>
           </Reveal>
 
-          <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-3 gap-x-8 gap-y-12">
+          <div className="mt-16 grid md:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
             {[
               { icon: <ClockIcon />, title: "Ahorrá +18 horas al mes", desc: "Más de 2 jornadas laborales completas que podés dedicar a asesorar clientes en lugar de navegar ARCA." },
               { icon: <ShieldIcon />, title: "Cero olvidos, cero multas", desc: "Visualizá de un vistazo qué clientes están al día y cuáles están atrasados con badges de estado automáticos." },
+              { icon: <PuzzleIcon />, title: "Autologin con 1 click", desc: "Extensión Chrome incluida para entrar a ARCA directamente desde el panel sin copiar y pegar credenciales." },
+              { icon: <TableCellsIcon />, title: "Matriz de cumplimiento", desc: "Vista visual de qué DDJJ presentó cada cliente y cuáles faltan. Identificá incumplimientos en segundos." },
               { icon: <KeyIcon />, title: "Credenciales centralizadas", desc: "Todas las claves fiscales y CUIT de tus clientes organizados y accesibles desde un solo panel." },
               { icon: <ChartIcon />, title: "Historial completo", desc: "Registro de cada consulta realizada con fecha, estado y resultados. Trazabilidad total para tu estudio." },
-              { icon: <UsersIcon />, title: "Multi-cliente", desc: "Gestioná 10, 50 o 200 clientes con la misma facilidad. La plataforma escala con tu estudio." },
+              { icon: <UsersIcon />, title: "Multi-cliente con import masivo", desc: "Importá clientes desde Excel, CSV o Google Sheets. Gestioná 10, 50 o 200 clientes con la misma facilidad." },
               { icon: <BoltIcon />, title: "Ejecución automática", desc: "Un click para consultar todos tus clientes. La plataforma se encarga del resto mientras vos seguís trabajando." },
             ].map((item, i) => (
-              <Reveal key={item.title} delay={(i % 3) * 0.1}>
+              <Reveal key={item.title} delay={(i % 4) * 0.1}>
                 <div className="group">
                   <div className="w-14 h-14 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center mb-5 group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
                     {item.icon}
@@ -303,6 +350,51 @@ export default function LandingPage() {
                 </div>
               </Reveal>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── PARA QUIÉN ES ─── */}
+      <section className="py-24">
+        <div className="max-w-6xl mx-auto px-6">
+          <Reveal>
+            <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">Para quién es</p>
+            <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 max-w-xl">
+              Diseñado para el contador moderno
+            </h2>
+          </Reveal>
+
+          <div className="mt-12 grid md:grid-cols-2 gap-6">
+            <Reveal delay={0.1}>
+              <div className="rounded-2xl border border-blue-100 bg-blue-50/50 p-8">
+                <div className="w-12 h-12 rounded-xl bg-blue-600 text-white flex items-center justify-center mb-5 text-xl font-black">🏢</div>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">Estudios contables</h3>
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">Con 5 a 200 clientes bajo tu gestión. DJControl te da una visión centralizada de todo tu cartera: quién presentó, quién no, y qué períodos están pendientes.</p>
+                <ul className="space-y-2 text-sm text-gray-600">
+                  {["Gestión multi-usuario del estudio", "Import masivo de clientes desde Excel", "Matriz de cumplimiento visual por cliente"].map(i => (
+                    <li key={i} className="flex items-center gap-2">
+                      <CheckCircleIcon className="w-4 h-4 text-blue-500 shrink-0" />
+                      {i}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
+            <Reveal delay={0.2}>
+              <div className="rounded-2xl border border-gray-200 bg-white p-8">
+                <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mb-5 text-xl font-black">👤</div>
+                <h3 className="text-lg font-bold text-gray-900 mb-3">Contadores independientes</h3>
+                <p className="text-sm text-gray-600 leading-relaxed mb-4">Con múltiples CUITs a cargo. Eliminá el trabajo manual de entrar a ARCA uno por uno y dedicá ese tiempo a tareas de mayor valor.</p>
+                <ul className="space-y-2 text-sm text-gray-600">
+                  {["Autologin con 1 click por cliente", "Alertas de clientes atrasados", "Historial de consultas y exportación CSV"].map(i => (
+                    <li key={i} className="flex items-center gap-2">
+                      <CheckCircleIcon className="w-4 h-4 text-gray-400 shrink-0" />
+                      {i}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </Reveal>
           </div>
         </div>
       </section>
@@ -390,6 +482,9 @@ export default function LandingPage() {
           </Reveal>
         </div>
       </section>
+
+      {/* ─── DESLINDE DE RESPONSABILIDADES ─── */}
+      <DisclaimerSection />
 
       {/* ─── FOOTER ─── */}
       <footer className="py-10 border-t border-gray-100 bg-gray-50">

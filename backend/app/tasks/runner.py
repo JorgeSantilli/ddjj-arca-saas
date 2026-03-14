@@ -96,6 +96,7 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
         logger.info(f"Scraping: {cliente.nombre} (CUIT: {cliente.cuit_consulta})")
 
         try:
+            from app.auth.encryption import decrypt_clave
             from app.services.scraper import ARCAScraper
 
             scraper = ARCAScraper(
@@ -107,7 +108,7 @@ def _sync_scrape(consulta_id: int, tenant_id: int):
 
             resultado = scraper.ejecutar_consulta(
                 cuit_login=cliente.cuit_login,
-                clave_fiscal=cliente.clave_fiscal,
+                clave_fiscal=decrypt_clave(cliente.clave_fiscal),
                 cuit_consulta=cliente.cuit_consulta,
                 periodo=consulta.periodo,
                 tenant_id=tenant_id,

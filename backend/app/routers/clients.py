@@ -8,6 +8,7 @@ from sqlalchemy import select, func
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_tenant_id, get_current_user
+from app.auth.encryption import decrypt_clave, encrypt_clave
 from app.db import get_db
 from app.models.client import Cliente
 from app.models.download import Descarga
@@ -131,7 +132,7 @@ async def import_clients(
         if existing:
             # Update existing
             existing.nombre = row.nombre.strip()
-            existing.clave_fiscal = row.clave_fiscal.strip()
+            existing.clave_fiscal = encrypt_clave(row.clave_fiscal.strip())
             existing.cuit_consulta = cuit_consulta_clean
             existing.tipo_cliente = row.tipo_cliente if row.tipo_cliente in ("empleador", "no_empleador") else "no_empleador"
             existing.activo = row.activo
@@ -142,7 +143,7 @@ async def import_clients(
                 tenant_id=tenant_id,
                 nombre=row.nombre.strip(),
                 cuit_login=cuit_clean,
-                clave_fiscal=row.clave_fiscal.strip(),
+                clave_fiscal=encrypt_clave(row.clave_fiscal.strip()),
                 cuit_consulta=cuit_consulta_clean,
                 tipo_cliente=row.tipo_cliente if row.tipo_cliente in ("empleador", "no_empleador") else "no_empleador",
                 activo=row.activo,
@@ -162,7 +163,9 @@ async def create_client(
     _user: Annotated[User, Depends(get_current_user)],
 ):
     """Crear un nuevo cliente ARCA."""
-    cliente = Cliente(**payload.model_dump(), tenant_id=tenant_id)
+    data = payload.model_dump()
+    data["clave_fiscal"] = encrypt_clave(data["clave_fiscal"])
+    cliente = Cliente(**data, tenant_id=tenant_id)
     db.add(cliente)
     await db.commit()
     await db.refresh(cliente)
@@ -200,7 +203,7 @@ async def get_client_password(
     cliente = result.scalar_one_or_none()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
-    return {"clave_fiscal": cliente.clave_fiscal}
+    return {"clave_fiscal": decrypt_clave(cliente.clave_fiscal)}
 
 
 @router.get("/{client_id}/autologin", response_class=HTMLResponse)
@@ -217,6 +220,8 @@ async def client_autologin(
     cliente = result.scalar_one_or_none()
     if not cliente:
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
+
+    clave_plaintext = decrypt_clave(cliente.clave_fiscal)
 
     html = f"""<!DOCTYPE html>
 <html lang="es">
@@ -266,7 +271,7 @@ async def client_autologin(
   <div class="field">
     <label>Clave Fiscal</label>
     <div class="field-row">
-      <div class="field-value" id="clave">{cliente.clave_fiscal}</div>
+      <div class="field-value" id="clave">{clave_plaintext}</div>
       <button class="btn-copy" onclick="copiar('clave', this)">Copiar</button>
     </div>
   </div>
@@ -330,6 +335,8 @@ async def update_client(
         raise HTTPException(status_code=404, detail="Cliente no encontrado")
 
     update_data = payload.model_dump(exclude_unset=True)
+    if "clave_fiscal" in update_data and update_data["clave_fiscal"]:
+        update_data["clave_fiscal"] = encrypt_clave(update_data["clave_fiscal"])
     for field, value in update_data.items():
         setattr(cliente, field, value)
 

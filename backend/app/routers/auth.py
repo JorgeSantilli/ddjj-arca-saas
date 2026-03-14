@@ -1,17 +1,35 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.deps import get_current_user
 from app.auth.jwt import create_access_token
 from app.auth.password import DUMMY_HASH, hash_password, verify_password
+from app.config import settings
 from app.db import get_db
 from app.models.user import Tenant, User
 from app.schemas.auth import LoginRequest, RegisterRequest, UserResponse
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+limiter = Limiter(key_func=get_remote_address)
+
+
+def _set_auth_cookie(response: Response, token: str) -> None:
+    """Set JWT cookie con configuración segura según entorno."""
+    is_prod = settings.APP_ENV == "production"
+    response.set_cookie(
+        key="access_token",
+        value=token,
+        httponly=True,
+        secure=is_prod,          # HTTPS-only en producción
+        samesite="strict" if is_prod else "lax",
+        max_age=86400,
+        path="/",
+    )
 
 
 @router.post("/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
@@ -44,20 +62,14 @@ async def register(
 
     # Set JWT cookie
     token = create_access_token(user.id, tenant.id, user.is_superadmin)
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=86400,
-        path="/",
-    )
+    _set_auth_cookie(response, token)
     return user
 
 
 @router.post("/login", response_model=UserResponse)
+@limiter.limit("10/minute")
 async def login(
+    request: Request,
     payload: LoginRequest,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -78,15 +90,7 @@ async def login(
         raise HTTPException(status_code=403, detail="Cuenta desactivada")
 
     token = create_access_token(user.id, user.tenant_id, user.is_superadmin)
-    response.set_cookie(
-        key="access_token",
-        value=token,
-        httponly=True,
-        secure=False,
-        samesite="lax",
-        max_age=86400,
-        path="/",
-    )
+    _set_auth_cookie(response, token)
     return user
 
 

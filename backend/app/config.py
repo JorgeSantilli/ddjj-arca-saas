@@ -1,4 +1,5 @@
 import os
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -10,6 +11,35 @@ class Settings(BaseSettings):
     SECRET_KEY: str = "change-me-in-production"
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440  # 24 hours
+
+    # Field-level encryption for clave_fiscal (64 hex chars = 32 bytes AES-256 key)
+    # Generate with: python -c "import secrets; print(secrets.token_hex(32))"
+    FIELD_ENCRYPTION_KEY: str = ""
+
+    @field_validator("SECRET_KEY")
+    @classmethod
+    def secret_key_must_not_be_default(cls, v: str) -> str:
+        if v == "change-me-in-production":
+            import os
+            if os.getenv("APP_ENV", "development") == "production":
+                raise ValueError(
+                    "SECRET_KEY no puede ser el valor por defecto en producción. "
+                    "Generá uno con: python -c \"import secrets; print(secrets.token_hex(32))\""
+                )
+        return v
+
+    @field_validator("FIELD_ENCRYPTION_KEY")
+    @classmethod
+    def encryption_key_must_be_valid(cls, v: str) -> str:
+        if not v:
+            return v  # Vacío = encriptación deshabilitada (compatible con datos existentes)
+        try:
+            key = bytes.fromhex(v)
+        except ValueError:
+            raise ValueError("FIELD_ENCRYPTION_KEY debe ser hexadecimal válido")
+        if len(key) != 32:
+            raise ValueError("FIELD_ENCRYPTION_KEY debe tener exactamente 64 caracteres hex (32 bytes)")
+        return v
 
     # Celery
     CELERY_BROKER_URL: str = "redis://localhost:6379/0"

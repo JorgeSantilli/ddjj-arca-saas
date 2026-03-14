@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef, useMemo } from "react";
+import * as XLSX from "xlsx";
 import {
   clients as clientsApi,
   consultations,
@@ -341,6 +342,10 @@ export default function DashboardPage() {
   const [importRows, setImportRows] = useState<ClienteImportRow[]>([]);
   const [importResult, setImportResult] = useState<ClienteImportResult | null>(null);
   const [importing, setImporting] = useState(false);
+  const [importTab, setImportTab] = useState<"file" | "sheets">("file");
+  const [sheetsUrl, setSheetsUrl] = useState("");
+  const [sheetsLoading, setSheetsLoading] = useState(false);
+  const [sheetsError, setSheetsError] = useState("");
   const csvInputRef = useRef<HTMLInputElement>(null);
 
   // ─── Download selection ───────────────────────────────────────────────────
@@ -537,22 +542,74 @@ export default function DashboardPage() {
     }
   }
 
-  // ─── CSV import handlers ──────────────────────────────────────────────────
-  function handleCSVFile(e: React.ChangeEvent<HTMLInputElement>) {
+  // ─── Import handlers ──────────────────────────────────────────────────────
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-      const text = ev.target?.result as string;
+    const ext = file.name.split(".").pop()?.toLowerCase() || "";
+    if (ext === "xlsx" || ext === "xls") {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const data = new Uint8Array(ev.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const sheet = workbook.Sheets[workbook.SheetNames[0]];
+        const csvText = XLSX.utils.sheet_to_csv(sheet);
+        const parsed = parseCSV(csvText);
+        const mapped = parsed.map(mapCSVRow).filter(Boolean) as ClienteImportRow[];
+        setImportRows(mapped);
+        setImportResult(null);
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const text = ev.target?.result as string;
+        const parsed = parseCSV(text);
+        const mapped = parsed.map(mapCSVRow).filter(Boolean) as ClienteImportRow[];
+        setImportRows(mapped);
+        setImportResult(null);
+      };
+      reader.readAsText(file, "UTF-8");
+    }
+    e.target.value = "";
+  }
+
+  async function handleSheetsImport() {
+    if (!sheetsUrl.trim()) return;
+    setSheetsLoading(true);
+    setSheetsError("");
+    try {
+      const res = await fetch(`/api/sheets-import?url=${encodeURIComponent(sheetsUrl)}`);
+      if (!res.ok) {
+        const err = await res.json();
+        setSheetsError(err.error || "Error al cargar Google Sheet");
+        return;
+      }
+      const text = await res.text();
       const parsed = parseCSV(text);
       const mapped = parsed.map(mapCSVRow).filter(Boolean) as ClienteImportRow[];
       setImportRows(mapped);
       setImportResult(null);
-      setShowImportPreview(true);
-    };
-    reader.readAsText(file, "UTF-8");
-    // Reset input so same file can be selected again
-    e.target.value = "";
+    } catch {
+      setSheetsError("Error al conectar con Google Sheets");
+    } finally {
+      setSheetsLoading(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const csv = [
+      "nombre,cuit_login,clave_fiscal,cuit_consulta,tipo_cliente,activo",
+      "Empresa Ejemplo S.A.,20123456789,MiClave123,20123456789,no_empleador,si",
+      "Otra Empresa S.R.L.,27987654321,OtraClave456,27987654321,empleador,si",
+    ].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "plantilla_clientes_djcontrol.csv";
+    a.click();
+    URL.revokeObjectURL(url);
   }
 
   async function handleImport() {
@@ -827,15 +884,15 @@ export default function DashboardPage() {
               <input
                 ref={csvInputRef}
                 type="file"
-                accept=".csv,.tsv,.txt"
-                onChange={handleCSVFile}
+                accept=".csv,.xlsx,.xls,.tsv,.txt"
+                onChange={handleFileChange}
                 className="hidden"
               />
               <button
-                onClick={() => csvInputRef.current?.click()}
+                onClick={() => { setShowImportPreview(true); setImportRows([]); setImportResult(null); setImportTab("file"); setSheetsUrl(""); setSheetsError(""); }}
                 className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
-                Importar CSV
+                Importar clientes
               </button>
               <button
                 onClick={openNewClient}
@@ -1613,17 +1670,15 @@ export default function DashboardPage() {
       )}
 
       {/* ═══════════════════════════════════════════════════════════════════════
-         CSV IMPORT PREVIEW MODAL
+         IMPORT MODAL
          ═══════════════════════════════════════════════════════════════════════ */}
       {showImportPreview && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 max-h-[80vh] flex flex-col">
+          <div className="bg-white rounded-xl shadow-xl max-w-3xl w-full p-6 max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">
-                Importar Clientes desde CSV
-              </h3>
+              <h3 className="text-lg font-semibold text-gray-900">Importar Clientes</h3>
               <button
-                onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); }}
+                onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); setSheetsUrl(""); setSheetsError(""); }}
                 className="text-gray-400 hover:text-gray-600"
               >
                 <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1633,6 +1688,7 @@ export default function DashboardPage() {
             </div>
 
             {importResult ? (
+              /* ── Result screen ── */
               <div className="space-y-4">
                 <div className="flex gap-3">
                   {importResult.created > 0 && (
@@ -1675,72 +1731,146 @@ export default function DashboardPage() {
                 )}
                 <div className="flex justify-end">
                   <button
-                    onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); }}
+                    onClick={() => { setShowImportPreview(false); setImportRows([]); setImportResult(null); setSheetsUrl(""); setSheetsError(""); }}
                     className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
                   >
                     Cerrar
                   </button>
                 </div>
               </div>
-            ) : (
+            ) : importRows.length > 0 ? (
+              /* ── Preview screen ── */
               <>
-                {importRows.length === 0 ? (
-                  <div className="py-10 text-center text-sm text-gray-500">
-                    No se encontraron datos válidos en el archivo CSV.
-                    <br />
-                    <span className="text-xs text-gray-400 mt-1 block">
-                      Columnas esperadas: nombre, cuit_login, clave_fiscal, cuit_consulta (opcional), tipo_cliente (opcional), activo (opcional)
-                    </span>
+                <div className="overflow-auto flex-1 border border-gray-200 rounded-lg mb-4">
+                  <table className="min-w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50 border-b border-gray-200">
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">#</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Nombre</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Login</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Clave</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Consulta</th>
+                        <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Tipo</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {importRows.map((row, i) => (
+                        <tr key={i} className="hover:bg-gray-50/60">
+                          <td className="px-3 py-2 text-gray-500">{i + 1}</td>
+                          <td className="px-3 py-2 text-gray-900">{row.nombre}</td>
+                          <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_login}</td>
+                          <td className="px-3 py-2 text-gray-400">{"•".repeat(Math.min(row.clave_fiscal.length, 8))}</td>
+                          <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_consulta}</td>
+                          <td className="px-3 py-2 text-gray-600">{row.tipo_cliente}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-500">
+                    {importRows.length} cliente{importRows.length !== 1 ? "s" : ""} a importar
+                  </span>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setImportRows([])}
+                      className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
+                    >
+                      Volver
+                    </button>
+                    <button
+                      onClick={handleImport}
+                      disabled={importing}
+                      className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40"
+                    >
+                      {importing ? "Importando..." : `Importar ${importRows.length} cliente${importRows.length !== 1 ? "s" : ""}`}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              /* ── Source selection (tabs) ── */
+              <>
+                {/* Tabs */}
+                <div className="flex border-b border-gray-200 mb-5">
+                  {(["file", "sheets"] as const).map((tab) => (
+                    <button
+                      key={tab}
+                      onClick={() => { setImportTab(tab); setSheetsError(""); }}
+                      className={`px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                        importTab === tab
+                          ? "border-blue-600 text-blue-600"
+                          : "border-transparent text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {tab === "file" ? "Archivo (CSV / Excel)" : "Google Sheets"}
+                    </button>
+                  ))}
+                </div>
+
+                {importTab === "file" ? (
+                  <div className="space-y-4">
+                    {/* Column info */}
+                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 text-xs text-gray-600">
+                      <p className="font-semibold text-gray-700 mb-1.5">Columnas esperadas</p>
+                      <p className="font-mono">nombre, cuit_login, clave_fiscal, cuit_consulta (opcional), tipo_cliente (opcional), activo (opcional)</p>
+                      <p className="mt-2 text-gray-400">Formatos aceptados: .csv, .xlsx, .xls — separador auto-detectado (coma, punto y coma, tabulación)</p>
+                    </div>
+                    {/* Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <button
+                        onClick={() => csvInputRef.current?.click()}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                        </svg>
+                        Seleccionar archivo
+                      </button>
+                      <button
+                        onClick={downloadTemplate}
+                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Descargar plantilla CSV
+                      </button>
+                    </div>
                   </div>
                 ) : (
-                  <>
-                    <div className="overflow-auto flex-1 border border-gray-200 rounded-lg mb-4">
-                      <table className="min-w-full text-sm">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-200">
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">#</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Nombre</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Login</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Clave</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">CUIT Consulta</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-600">Tipo</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                          {importRows.map((row, i) => (
-                            <tr key={i} className="hover:bg-gray-50/60">
-                              <td className="px-3 py-2 text-gray-500">{i + 1}</td>
-                              <td className="px-3 py-2 text-gray-900">{row.nombre}</td>
-                              <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_login}</td>
-                              <td className="px-3 py-2 text-gray-400">{"•".repeat(Math.min(row.clave_fiscal.length, 8))}</td>
-                              <td className="px-3 py-2 text-gray-700 tabular-nums">{row.cuit_consulta}</td>
-                              <td className="px-3 py-2 text-gray-600">{row.tipo_cliente}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                  <div className="space-y-4">
+                    {/* Instructions */}
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-xs text-blue-700">
+                      <p className="font-semibold mb-1.5">¿Cómo compartir el Sheet?</p>
+                      <ol className="list-decimal list-inside space-y-1 text-blue-600">
+                        <li>Abrí el Google Sheet con tu lista de clientes</li>
+                        <li>Clic en <strong>Compartir</strong> → <strong>Cambiar a cualquier persona con el enlace</strong></li>
+                        <li>Copiá el enlace y pegalo abajo</li>
+                      </ol>
+                      <p className="mt-2 text-blue-500">El sheet debe tener las columnas: nombre, cuit_login, clave_fiscal (y opcionalmente cuit_consulta, tipo_cliente, activo)</p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm text-gray-500">
-                        {importRows.length} cliente{importRows.length !== 1 ? "s" : ""} a importar
-                      </span>
-                      <div className="flex gap-3">
-                        <button
-                          onClick={() => { setShowImportPreview(false); setImportRows([]); }}
-                          className="px-4 py-2 text-sm text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-50"
-                        >
-                          Cancelar
-                        </button>
-                        <button
-                          onClick={handleImport}
-                          disabled={importing}
-                          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40"
-                        >
-                          {importing ? "Importando..." : `Importar ${importRows.length} cliente${importRows.length !== 1 ? "s" : ""}`}
-                        </button>
-                      </div>
+                    {/* URL input */}
+                    <div className="flex gap-2">
+                      <input
+                        type="url"
+                        placeholder="https://docs.google.com/spreadsheets/d/..."
+                        value={sheetsUrl}
+                        onChange={(e) => setSheetsUrl(e.target.value)}
+                        className="flex-1 px-3 py-2.5 border border-gray-300 rounded-lg text-sm text-gray-900 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                      <button
+                        onClick={handleSheetsImport}
+                        disabled={!sheetsUrl.trim() || sheetsLoading}
+                        className="px-4 py-2.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors whitespace-nowrap"
+                      >
+                        {sheetsLoading ? "Cargando..." : "Cargar"}
+                      </button>
                     </div>
-                  </>
+                    {sheetsError && (
+                      <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{sheetsError}</p>
+                    )}
+                  </div>
                 )}
               </>
             )}
