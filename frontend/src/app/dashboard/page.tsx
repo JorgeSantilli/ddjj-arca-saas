@@ -597,17 +597,73 @@ export default function DashboardPage() {
     }
   }
 
+  const TEMPLATE_ROWS = [
+    ["nombre", "cuit_login", "clave_fiscal", "cuit_consulta", "tipo_cliente", "activo"],
+    ["Empresa Ejemplo S.A.", "20123456789", "MiClave123", "20123456789", "no_empleador", "si"],
+    ["Otra Empresa S.R.L.", "27987654321", "OtraClave456", "27987654321", "empleador", "si"],
+  ];
+
   function downloadTemplate() {
-    const csv = [
-      "nombre,cuit_login,clave_fiscal,cuit_consulta,tipo_cliente,activo",
-      "Empresa Ejemplo S.A.,20123456789,MiClave123,20123456789,no_empleador,si",
-      "Otra Empresa S.R.L.,27987654321,OtraClave456,27987654321,empleador,si",
-    ].join("\n");
+    const csv = TEMPLATE_ROWS.map((row) => row.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
     a.download = "plantilla_clientes_djcontrol.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function downloadTemplateExcel() {
+    const ws = XLSX.utils.aoa_to_sheet(TEMPLATE_ROWS);
+
+    // Anchos de columna (en caracteres)
+    ws["!cols"] = [
+      { wch: 30 }, // nombre
+      { wch: 16 }, // cuit_login
+      { wch: 16 }, // clave_fiscal
+      { wch: 16 }, // cuit_consulta
+      { wch: 16 }, // tipo_cliente
+      { wch: 8  }, // activo
+    ];
+
+    // Negrita en la fila de encabezados
+    const headerCells = ["A1", "B1", "C1", "D1", "E1", "F1"];
+    headerCells.forEach((ref) => {
+      if (!ws[ref]) return;
+      ws[ref].s = { font: { bold: true } };
+    });
+
+    // Dropdown en columna tipo_cliente (E2:E1000)
+    ws["!dataValidation"] = [
+      {
+        sqref: "E2:E1000",
+        type: "list",
+        formula1: '"empleador,no_empleador"',
+        showDropDown: false,
+        errorTitle: "Valor inválido",
+        error: "Usá 'empleador' o 'no_empleador'",
+      },
+    ];
+
+    // Dropdown en columna activo (F2:F1000)
+    if (!ws["!dataValidation"]) ws["!dataValidation"] = [];
+    (ws["!dataValidation"] as object[]).push({
+      sqref: "F2:F1000",
+      type: "list",
+      formula1: '"si,no"',
+      showDropDown: false,
+    });
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Clientes");
+
+    const buffer = XLSX.write(wb, { type: "array", bookType: "xlsx", cellStyles: true });
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "plantilla_clientes_djcontrol.xlsx";
     a.click();
     URL.revokeObjectURL(url);
   }
@@ -1816,40 +1872,73 @@ export default function DashboardPage() {
                       <p className="font-mono">nombre, cuit_login, clave_fiscal, cuit_consulta (opcional), tipo_cliente (opcional), activo (opcional)</p>
                       <p className="mt-2 text-gray-400">Formatos aceptados: .csv, .xlsx, .xls — separador auto-detectado (coma, punto y coma, tabulación)</p>
                     </div>
-                    {/* Buttons */}
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      <button
-                        onClick={() => csvInputRef.current?.click()}
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-                        </svg>
-                        Seleccionar archivo
-                      </button>
-                      <button
-                        onClick={downloadTemplate}
-                        className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-3 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Descargar plantilla CSV
-                      </button>
+                    {/* Upload button */}
+                    <button
+                      onClick={() => csvInputRef.current?.click()}
+                      className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+                      </svg>
+                      Seleccionar archivo (.csv / .xlsx / .xls)
+                    </button>
+
+                    {/* Template downloads */}
+                    <div>
+                      <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">Descargar plantilla vacía</p>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={downloadTemplate}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Plantilla CSV
+                        </button>
+                        <button
+                          onClick={downloadTemplateExcel}
+                          className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-white text-gray-700 text-sm font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                          </svg>
+                          Plantilla Excel (.xlsx)
+                        </button>
+                      </div>
                     </div>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {/* Instructions */}
+                    {/* Template for Google Sheets */}
+                    <div className="border border-gray-200 rounded-lg p-4">
+                      <p className="text-xs font-semibold text-gray-700 mb-1">¿No tenés un Sheet todavía?</p>
+                      <p className="text-xs text-gray-500 mb-3">
+                        Descargá la plantilla Excel, completala con tus clientes, y después importala a Google Sheets:
+                        <span className="ml-1 font-medium text-gray-600">Archivo → Importar → Subir archivo</span>
+                      </p>
+                      <button
+                        onClick={downloadTemplateExcel}
+                        className="inline-flex items-center gap-1.5 px-3 py-2 bg-white text-gray-700 text-xs font-medium border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                      >
+                        <svg className="w-3.5 h-3.5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Descargar plantilla Excel (.xlsx)
+                      </button>
+                    </div>
+
+                    {/* How to share instructions */}
                     <div className="bg-blue-50 border border-blue-100 rounded-lg p-4 text-xs text-blue-700">
-                      <p className="font-semibold mb-1.5">¿Cómo compartir el Sheet?</p>
+                      <p className="font-semibold mb-1.5">¿Cómo compartir el Sheet para poder importarlo?</p>
                       <ol className="list-decimal list-inside space-y-1 text-blue-600">
                         <li>Abrí el Google Sheet con tu lista de clientes</li>
                         <li>Clic en <strong>Compartir</strong> → <strong>Cambiar a cualquier persona con el enlace</strong></li>
                         <li>Copiá el enlace y pegalo abajo</li>
                       </ol>
-                      <p className="mt-2 text-blue-500">El sheet debe tener las columnas: nombre, cuit_login, clave_fiscal (y opcionalmente cuit_consulta, tipo_cliente, activo)</p>
+                      <p className="mt-2 text-blue-500">Columnas requeridas: <span className="font-mono">nombre, cuit_login, clave_fiscal</span> — el resto es opcional</p>
                     </div>
+
                     {/* URL input */}
                     <div className="flex gap-2">
                       <input
