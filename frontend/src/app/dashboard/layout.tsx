@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { auth } from "@/lib/api";
+import HelpModal from "./HelpModal";
 
 const navItems = [
   { href: "/dashboard", label: "Operaciones" },
@@ -28,6 +29,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const router = useRouter();
   const [showLegal, setShowLegal] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   if (loading) {
     return (
@@ -81,6 +83,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className="flex items-center gap-4">
             <span className="text-sm text-blue-200">{user.nombre}</span>
             <button
+              onClick={() => setShowHelp(true)}
+              className="w-7 h-7 rounded-full bg-blue-700 hover:bg-blue-600 flex items-center justify-center text-white text-xs font-bold transition-colors"
+              title="Ayuda"
+            >
+              ?
+            </button>
+            <button
               onClick={handleLogout}
               className="text-sm text-blue-300 hover:text-white"
             >
@@ -122,6 +131,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
       </footer>
+
+      {/* Help Modal */}
+      {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}
 
       {/* Legal Modal */}
       {showLegal && (

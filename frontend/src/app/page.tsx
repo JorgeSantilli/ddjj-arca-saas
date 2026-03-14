@@ -111,6 +111,83 @@ function ArrowRightIcon() {
   );
 }
 
+/* ───────── FAQ SECTION ───────── */
+const FAQ_ITEMS = [
+  {
+    q: "¿Qué es DJControl?",
+    a: "DJControl es una plataforma SaaS que automatiza la consulta de Declaraciones Juradas (DDJJ) en ARCA (ex-AFIP). En lugar de entrar a ARCA cliente por cliente, cargás tus clientes una sola vez y la plataforma hace la consulta automáticamente.",
+  },
+  {
+    q: "¿Necesito instalar algo?",
+    a: "No. DJControl corre completamente en la nube. El único componente opcional es la extensión Chrome 'Arca Access', que permite hacer autologin en ARCA con 1 click directamente desde el panel. No es obligatoria para las consultas automáticas.",
+  },
+  {
+    q: "¿Cómo se guardan las claves fiscales?",
+    a: "Las claves fiscales se encriptan con AES-256-GCM antes de guardarse en la base de datos. Nunca se muestran en texto plano en la interfaz. Son accesibles únicamente por el contador titular de la cuenta.",
+  },
+  {
+    q: "¿Funciona para cualquier tipo de contribuyente?",
+    a: "Sí. Podés configurar clientes como 'Empleador' o 'No empleador'. La Planilla de Cumplimiento y los estados de DDJJ se adaptan según el tipo de cliente.",
+  },
+  {
+    q: "¿Puedo importar clientes desde Excel o Google Sheets?",
+    a: "Sí. Desde el panel podés importar clientes en masa desde archivos CSV, Excel (.xlsx/.xls) o directamente desde una URL de Google Sheets. Hay plantillas descargables con el formato exacto esperado.",
+  },
+  {
+    q: "¿Qué pasa si ARCA cae o cambia su interfaz?",
+    a: "DJControl depende del funcionamiento del sitio web de ARCA. Si ARCA no responde o cambia su interfaz, las consultas pueden fallar. En ese caso, reintentás cuando ARCA vuelva a funcionar. La plataforma reporta el error con detalles en el log del scraper.",
+  },
+  {
+    q: "¿Necesito tener un poder o autorización en ARCA?",
+    a: "Sí. Para que la consulta funcione, el CUIT Login debe tener autorización para consultar el CUIT de consulta dentro de ARCA. Esto se configura directamente en la plataforma de ARCA, no en DJControl.",
+  },
+  {
+    q: "¿Es oficial? ¿Está autorizado por ARCA/AFIP?",
+    a: "No. DJControl es una herramienta independiente que automatiza el uso del sitio web público de ARCA. No tiene afiliación oficial con ARCA, AFIP ni ningún organismo gubernamental.",
+  },
+];
+
+function FaqSection() {
+  const [open, setOpen] = useState<number | null>(null);
+  return (
+    <section className="py-24 bg-gray-50 border-y border-gray-100">
+      <div className="max-w-6xl mx-auto px-6">
+        <Reveal>
+          <p className="text-sm font-semibold text-blue-600 uppercase tracking-widest mb-3">Preguntas frecuentes</p>
+          <h2 className="text-3xl md:text-4xl font-bold tracking-tight text-gray-900 max-w-xl">
+            Todo lo que necesitás saber
+          </h2>
+        </Reveal>
+        <div className="mt-12 max-w-3xl space-y-3">
+          {FAQ_ITEMS.map((item, i) => (
+            <Reveal key={i} delay={(i % 4) * 0.05}>
+              <div className="bg-white rounded-xl border border-gray-200 overflow-hidden hover:border-blue-200 transition-colors">
+                <button
+                  onClick={() => setOpen(open === i ? null : i)}
+                  className="w-full flex items-center justify-between px-6 py-4 text-left gap-4"
+                >
+                  <span className="text-sm font-semibold text-gray-900">{item.q}</span>
+                  <svg
+                    className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open === i ? "rotate-180" : ""}`}
+                    fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {open === i && (
+                  <div className="px-6 pb-5 text-sm text-gray-500 leading-relaxed border-t border-gray-100 pt-4">
+                    {item.a}
+                  </div>
+                )}
+              </div>
+            </Reveal>
+          ))}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 /* ───────── DISCLAIMER SECTION ───────── */
 function DisclaimerSection() {
   const [open, setOpen] = useState(false);
@@ -398,6 +475,9 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* ─── FAQ ─── */}
+      <FaqSection />
 
       {/* ─── NÚMEROS DE IMPACTO ─── */}
       <section className="py-24">
