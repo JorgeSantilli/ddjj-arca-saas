@@ -78,8 +78,29 @@ railway service frontend && railway up --detach
 - **tipo_cliente**: "empleador" / "no_empleador" enum field
 - **ultimo_periodo**: MAX(descargas.periodo) per client, computed in list endpoint
 - **estado_ddjj**: al_dia / atrasado_1 / atrasado_critico / sin_datos (vs fiscal month)
-- **Password visibility**: GET /clients/{id}/password returns clave_fiscal (stored plain text)
+- **Password**: GET /clients/{id}/password returns decrypted clave_fiscal
 - **Filters**: "Solo activos" + "Solo atrasados" toggles
+
+## Client Import (Multiformat)
+- Frontend button "Importar clientes" opens modal with two tabs:
+  - **Archivo (CSV/Excel)**: accepts .csv, .xlsx, .xls — auto-detects separator (`,` `;` `\t`)
+  - **Google Sheets**: paste sheet URL → server-side proxy at `/api/sheets-import` fetches CSV
+- Excel parsing via SheetJS (`xlsx` npm package) — converts first sheet to CSV then uses `parseCSV()`
+- Template download: generates and downloads a sample CSV with correct columns
+- Columns: nombre, cuit_login, clave_fiscal, cuit_consulta (opt), tipo_cliente (opt), activo (opt)
+- Google Sheets proxy: `frontend/src/app/api/sheets-import/route.ts` — validates hostname via `new URL()`, builds safe export URL from extracted Sheet ID
+
+## Security Architecture (CRITICAL)
+- **clave_fiscal encrypted at rest**: AES-256-GCM via `backend/app/auth/encryption.py`
+  - Stored as `enc:<base64(nonce+ciphertext+tag)>` in DB
+  - Key loaded from `FIELD_ENCRYPTION_KEY` env var (64 hex chars)
+  - Generate: `python -c "import secrets; print(secrets.token_hex(32))"`
+  - Auto-migration on startup: encrypts any legacy plain-text values
+  - `encrypt_clave()` / `decrypt_clave()` — always call these when reading/writing `clave_fiscal`
+  - `decrypt_clave()` is backward-compatible: returns plain text as-is if not prefixed with `enc:`
+- **JWT cookies**: `secure=True` + `samesite="strict"` in production, `lax` in dev
+- **Rate limiting**: `/auth/login` limited to 10 requests/minute per IP (slowapi)
+- **SECRET_KEY**: validated at startup — cannot be default value in production
 
 ## Key Constraints
 - **Sequential scraping only** — never parallel browser instances (ARCA blocks)
@@ -129,6 +150,8 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - Route `/` shows commercial landing if user is not authenticated
 - If authenticated, `/` redirects to `/dashboard`
 - **fetchApi 401 redirect excludes public routes** (`/`, `/login`, `/register`) to prevent redirect loops
+- Landing has 8 feature cards (4-col grid), "Para quién es" section, and collapsible disclaimer section
+- Dashboard has footer with "© DJControl · Aviso legal" — modal opens with legal disclaimer (non-blocking)
 
 ## Admin Panel
 - `/admin` — Global stats: tenants, users, clients, consultations, success rate
