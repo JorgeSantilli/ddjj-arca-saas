@@ -150,8 +150,14 @@ Every data model has `tenant_id` column. Every route uses `get_current_tenant_id
 - Route `/` shows commercial landing if user is not authenticated
 - If authenticated, `/` redirects to `/dashboard`
 - **fetchApi 401 redirect excludes public routes** (`/`, `/login`, `/register`) to prevent redirect loops
-- Landing has 8 feature cards (4-col grid), "Para quién es" section, and collapsible disclaimer section
+- Landing has 8 feature cards (4-col grid), "Para quién es" section, FAQ section (8 items), and collapsible disclaimer section
 - Dashboard has footer with "© DJControl · Aviso legal" — modal opens with legal disclaimer (non-blocking)
+- **Favicon**: `frontend/src/app/icon.png` — blue rounded square with "DJ" (Next.js App Router picks it up automatically)
+- **WhatsApp button**: `frontend/src/components/WhatsAppButton.tsx` — floating bottom-right, `wa.me/5492615366672`, z-40, pulse ring on desktop hidden on mobile
+
+## Help Portal
+- **Dashboard**: `frontend/src/app/dashboard/HelpModal.tsx` — 9-section help modal (Inicio rápido, Clientes, Importar, Consultas, Extensión Chrome, Cumplimiento, DDJJ, Diccionario, Logs). Sidebar nav desktop / accordion mobile. Opened via `?` button in header (layout.tsx).
+- **Landing**: `FaqSection` component in `page.tsx` — 8 FAQ items, accordion, before impact-numbers section.
 
 ## Admin Panel
 - `/admin` — Global stats: tenants, users, clients, consultations, success rate
