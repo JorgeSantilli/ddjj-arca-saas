@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { auth } from "@/lib/api";
 import HelpModal from "./HelpModal";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
 const navItems = [
   { href: "/dashboard", label: "Operaciones" },
@@ -131,6 +132,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </button>
         </div>
       </footer>
+
+      <WhatsAppButton />
 
       {/* Help Modal */}
       {showHelp && <HelpModal onClose={() => setShowHelp(false)} />}

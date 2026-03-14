@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/api";
+import WhatsAppButton from "@/components/WhatsAppButton";
 
 /* ───────── Intersection Observer hook for scroll animations ───────── */
 function useReveal() {
@@ -580,6 +581,8 @@ export default function LandingPage() {
           </p>
         </div>
       </footer>
+
+      <WhatsAppButton />
     </div>
   );
 }
